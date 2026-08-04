@@ -1,0 +1,252 @@
+#!/usr/bin/env bash
+# loraham-images — first boot. Idempotent, resumable, per-step state. Uses the fixed
+# public onboarding defaults; no lhpc-config.txt edit is required. On any failure it stays
+# armed (unit not marked done) with the AP + SSH recovery path left up where possible.
+#
+# Runs after the Raspberry Pi OS root-expansion mechanism (unit ordering). Substitutes
+# absent hardware only under LHPC_FIRSTBOOT_CI=1 (Gate A2), never in the sealed image.
+set -o errexit -o nounset -o pipefail
+
+STATE=/var/lib/lhpc/firstboot.d
+DONE=/var/lib/lhpc/.firstboot-done
+BOOTCFG=/boot/firmware/lhpc-config.txt
+DEFAULTS=/etc/lhpc/onboarding-defaults.env
+IMGENV=/etc/lhpc/image.env
+CI="${LHPC_FIRSTBOOT_CI:-0}"
+
+mkdir -p "$STATE" /var/lib/lhpc
+LOG=/var/log/lhpc-firstboot.log
+exec > >(tee -a "$LOG") 2>&1
+ts(){ date -u +'%Y-%m-%dT%H:%M:%SZ'; }
+say(){ printf '[%s] firstboot: %s\n' "$(ts)" "$*"; }
+fail(){ printf '[%s] firstboot ERROR: %s (staying armed)\n' "$(ts)" "$*"; exit 1; }
+
+# ---- strict KEY=VALUE loader (trusted baked files) -------------------------
+load_kv(){ # $1 file ; exports KEY=VALUE, ignores comments, rejects malformed
+  local f="$1" line k v; [ -f "$f" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"; case "$line" in ''|'#'*) continue;; esac
+    case "$line" in *'='*) :;; *) continue;; esac
+    k="${line%%=*}"; v="${line#*=}"
+    case "$v" in *" #"*) v="${v%% #*}" ;; esac   # strip inline comment (space + #)
+    v="${v%"${v##*[![:space:]]}"}"               # rtrim
+    case "$k" in [A-Z_][A-Z0-9_]*) printf -v "$k" '%s' "$v"; export "${k?}";; esac
+  done < "$f"
+}
+load_kv "$DEFAULTS"
+load_kv "$IMGENV"
+
+# ---- optional lhpc-config.txt OVERRIDE (parsed as DATA, allowlist) ---------
+declare -A CFG=()
+parse_bootcfg(){
+  [ -f "$BOOTCFG" ] || return 0
+  local line k v seen=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"; line="${line#"${line%%[![:space:]]*}"}"
+    case "$line" in ''|'#'*) continue;; esac
+    case "$line" in *'='*) :;; *) say "ignoring malformed lhpc-config line"; continue;; esac
+    k="${line%%=*}"; v="${line#*=}"; k="${k%"${k##*[![:space:]]}"}"
+    case " $seen " in *" $k "*) fail "duplicate key in lhpc-config.txt: $k";; esac
+    seen="$seen $k"
+    case "$k" in
+      HOSTNAME|PASSWORD|WIFI_MODE|AP_SSID|AP_PSK|WIFI_SSID|WIFI_PSK|WIFI_COUNTRY|EXPOSE_SCOPE|CALL|ENABLE_SSH)
+        case "$v" in *[![:print:]]*) fail "non-printable value for $k";; esac
+        [ "${#v}" -le 128 ] || fail "value too long for $k"
+        CFG["$k"]="$v" ;;
+      *) say "ignoring unknown lhpc-config key: $k" ;;
+    esac
+  done < "$BOOTCFG"
+}
+parse_bootcfg
+ov(){ local k="$1" d="$2"; [ -n "${CFG[$k]:-}" ] && printf '%s' "${CFG[$k]}" || printf '%s' "$d"; }
+
+: "${VARIANT:?}"; : "${OPERATOR_USER:?}"
+OP="$OPERATOR_USER"; OP_UID="$(id -u "$OP")"; XRD="/run/user/$OP_UID"
+LHPC_BIN="/home/$OP/.local/bin/lhpc"; [ -x "$LHPC_BIN" ] || LHPC_BIN="$(command -v lhpc || echo lhpc)"
+
+wait_user_bus(){
+  loginctl enable-linger "$OP" >/dev/null 2>&1 || true
+  local _; for _ in $(seq 1 30); do [ -S "$XRD/bus" ] && return 0; sleep 1; done
+  fail "operator user bus $XRD/bus not available (user-systemd/lingering)"
+}
+as_op(){ runuser -u "$OP" -- env -u INVOCATION_ID \
+    HOME="/home/$OP" USER="$OP" LOGNAME="$OP" XDG_RUNTIME_DIR="$XRD" \
+    DBUS_SESSION_BUS_ADDRESS="unix:path=$XRD/bus" \
+    PATH="/home/$OP/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" "$@"; }
+lhpc(){ as_op "$LHPC_BIN" "$@"; }
+
+run_step(){ # $1 name ; $2.. command
+  local name="$1"; shift
+  [ -f "$STATE/$name.done" ] && { say "step $name already done"; return 0; }
+  say "step $name"
+  "$@"
+  touch "$STATE/$name.done"
+}
+
+# ---- resolved onboarding values --------------------------------------------
+SUFFIX="$(sed -n 's/^Serial\s*:\s*//p' /proc/cpuinfo 2>/dev/null | tail -c 5 | tr -d '\n' | tr 'A-F' 'a-f')"
+[ -n "$SUFFIX" ] || SUFFIX="$(head -c2 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n' || echo 0000)"
+HOSTNAME_FINAL="$(ov HOSTNAME "${HOSTNAME_BASE:-lhpc}-$SUFFIX")"
+OS_PW="$(ov PASSWORD "${OPERATOR_PASSWORD:-lhpc}")"
+AP_SSID_FINAL="$(ov AP_SSID "${AP_SSID_BASE:-lhpc}-$SUFFIX")"
+AP_PSK_FINAL="$(ov AP_PSK "${AP_PSK:-lorahampi}")"
+COUNTRY="$(ov WIFI_COUNTRY "${WIFI_COUNTRY:-DE}")"
+CALL_FINAL="$(ov CALL "")"
+EXPOSE="$(ov EXPOSE_SCOPE "${EXPOSE_SCOPE:-none}")"
+AP_ADDR="${AP_ADDR:-10.42.0.1}"; AP_PREFIX="${AP_PREFIX:-24}"; AP_CIDR="${AP_CIDR:-10.42.0.0/24}"
+
+# =====================  STEPS  ==============================================
+step_identity(){ systemd-machine-id-setup >/dev/null 2>&1 || true; }
+step_hostname(){
+  hostnamectl set-hostname "$HOSTNAME_FINAL" 2>/dev/null || echo "$HOSTNAME_FINAL" > /etc/hostname
+  if ! grep -qE "127\.0\.1\.1\s+$HOSTNAME_FINAL" /etc/hosts; then
+    printf '127.0.1.1\t%s\n' "$HOSTNAME_FINAL" >> /etc/hosts
+  fi
+}
+step_account(){ printf '%s:%s\n' "$OP" "$OS_PW" | chpasswd; }
+step_hostkeys(){ ssh-keygen -A; systemctl disable ssh 2>/dev/null || true; systemctl stop ssh 2>/dev/null || true; }
+
+step_regdomain(){ iw reg set "$COUNTRY" 2>/dev/null || true; }
+
+step_ap(){
+  # create/refresh the AP profile (well-formed regardless of a radio being present)
+  nmcli connection delete lhpc-ap >/dev/null 2>&1 || true
+  nmcli connection add type wifi ifname wlan0 con-name lhpc-ap autoconnect yes ssid "$AP_SSID_FINAL" >/dev/null
+  nmcli connection modify lhpc-ap \
+    802-11-wireless.mode ap 802-11-wireless.band bg \
+    ipv4.method shared ipv4.addresses "$AP_ADDR/$AP_PREFIX" \
+    wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$AP_PSK_FINAL" \
+    connection.autoconnect yes >/dev/null
+  if [ "$CI" = "1" ]; then
+    say "CI mode: AP address is provided by the harness; not activating the radio profile"
+  else
+    # real hardware: wait for wlan0, then bring the AP up
+    for _ in $(seq 1 30); do [ -d /sys/class/net/wlan0 ] && break; sleep 2; done
+    [ -d /sys/class/net/wlan0 ] || fail "no wlan0 — cannot form AP (staying armed)"
+    nmcli connection up lhpc-ap || fail "AP failed to come up"
+  fi
+}
+step_confirm_ap(){
+  for _ in $(seq 1 20); do ip -4 addr show | grep -q "inet $AP_ADDR/" && return 0; sleep 1; done
+  fail "AP address $AP_ADDR not present"
+}
+step_sshd_ap(){
+  install -d -m0755 /etc/ssh/sshd_config.d
+  cat > /etc/ssh/sshd_config.d/10-lhpc-ap.conf <<EOF
+# loraham-images: recovery SSH bound to the AP address only (no wildcard, no IPv6).
+ListenAddress $AP_ADDR
+AddressFamily inet
+EOF
+  install -d -m0755 /run/sshd   # privilege-separation dir (normally made by ssh.service at boot)
+  sshd -t -f /etc/ssh/sshd_config || fail "sshd config invalid"
+  # race-safe: allow bind before the address exists so a restart-loop recovers.
+  sysctl -q -w net.ipv4.ip_nonlocal_bind=1 2>/dev/null || true
+  mkdir -p /etc/systemd/system/ssh.service.d
+  cat > /etc/systemd/system/ssh.service.d/10-lhpc-ap.conf <<'EOF'
+[Unit]
+After=NetworkManager.service
+Wants=NetworkManager.service
+[Service]
+Restart=on-failure
+RestartSec=3s
+EOF
+  systemctl daemon-reload
+  # Trixie socket-activates ssh (ssh.socket binds ALL interfaces, ignoring sshd_config
+  # ListenAddress). Disable it so ssh.service honours the AP-only ListenAddress.
+  systemctl disable --now ssh.socket 2>/dev/null || true
+  systemctl enable ssh.service 2>/dev/null || true
+  systemctl restart ssh.service || fail "sshd failed to start on the AP address"
+}
+step_device_pki(){
+  # fresh per-device CA + server cert. Loopback + hostname + (Lite) AP SANs.
+  local args=(--dns localhost --dns "$HOSTNAME_FINAL.local" --ip 127.0.0.1)
+  [ "$VARIANT" = "lite" ] && args+=(--ip "$AP_ADDR")
+  lhpc webserver init "${args[@]}" || fail "webserver init failed"
+}
+step_expose(){
+  [ "$VARIANT" = "lite" ] || { say "desktop: loopback only, no exposure"; return 0; }
+  [ "$EXPOSE" = "ap" ] || { say "expose scope '$EXPOSE' != ap; skipping"; return 0; }
+  lhpc webserver expose --cidr "$AP_CIDR" --access-mode no-auth \
+      --confirm-phrase enable-remote-danger || fail "webserver expose failed"
+}
+step_console(){
+  local i
+  for i in 1 2 3; do
+    lhpc webserver start-service && break
+    say "webserver start-service attempt $i failed; retrying"; sleep 3
+  done
+  if ! lhpc webserver apply; then
+    say "webserver apply failed — capturing user-service state"
+    as_op systemctl --user status lhpc-nginx.service lhpc-web.service --no-pager 2>&1 | tail -40 || true
+    as_op journalctl --user -u lhpc-nginx.service --no-pager 2>&1 | tail -40 || true
+    command -v nginx >/dev/null 2>&1 && say "nginx binary present: $(command -v nginx)" || say "nginx binary MISSING"
+    fail "webserver apply failed"
+  fi
+  lhpc webserver verify || fail "webserver verify failed"
+}
+step_healthz(){
+  local url="https://127.0.0.1:${CONSOLE_PORT:-8443}/healthz"
+  for _ in $(seq 1 20); do
+    curl -fsSk --max-time 5 "$url" | grep -q '"status"' && { say "healthz OK"; return 0; }
+    sleep 2
+  done
+  fail "/healthz did not answer"
+}
+step_callsign(){
+  [ -n "$CALL_FINAL" ] && [ "$CALL_FINAL" != "N0CALL" ] || { say "callsign left unset/default"; return 0; }
+  lhpc config operator --callsign "$CALL_FINAL" || fail "callsign set failed"
+}
+step_swap(){
+  # In CI the image is the SHRUNK artifact (no real root-expansion, no free space); the swap
+  # transaction mechanics are proven separately by the gate fixture. Real swap is hardware Gate B.
+  if [ "$CI" = "1" ]; then say "CI mode: skipping real swapfile (proven by gate fixture; Gate B on hardware)"; return 0; fi
+  # gated on the real root-expansion having finished
+  local root_avail_kb; root_avail_kb="$(df -Pk / | awk 'NR==2{print $4}')"
+  local need_kb=$(( (${SWAP_MB:-768} + 256) * 1024 ))
+  local part_sz fs_sz
+  part_sz="$(blockdev --getsize64 "$(findmnt -no SOURCE /)" 2>/dev/null || echo 0)"
+  fs_sz="$(df -PB1 / | awk 'NR==2{print $2}')"
+  # expansion incomplete if the fs is still ~release-sized (< 90% of the partition)
+  if [ "$part_sz" -gt 0 ] && [ "$fs_sz" -lt $(( part_sz * 9 / 10 )) ]; then
+    fail "root filesystem not expanded yet (fs=$fs_sz part=$part_sz) — staying armed, not filling release-sized fs"
+  fi
+  [ "$root_avail_kb" -ge "$need_kb" ] || fail "insufficient free space for swap (have ${root_avail_kb}k need ${need_kb}k)"
+  local sf="${SWAP_FILE:-/var/swap.lhpc}"
+  if ! grep -q "^$sf " /proc/swaps 2>/dev/null; then
+    if [ ! -f "$sf" ]; then
+      fallocate -l "${SWAP_MB:-768}M" "$sf" 2>/dev/null || dd if=/dev/zero of="$sf" bs=1M count="${SWAP_MB:-768}" status=none
+    fi
+    [ -f "$sf" ] && [ ! -L "$sf" ] || fail "swapfile is not a regular file"
+    chmod 0600 "$sf"; mkswap "$sf" >/dev/null
+    grep -q "^$sf " /etc/fstab || printf '%s none swap sw,pri=10 0 0\n' "$sf" >> /etc/fstab
+    swapon "$sf" || fail "swapon failed"
+  fi
+  grep -q "^$sf " /proc/swaps || fail "swap not active in /proc/swaps"
+}
+
+# =====================  ORDER  =============================================
+run_step identity   step_identity
+run_step hostname   step_hostname
+run_step account    step_account
+run_step hostkeys   step_hostkeys
+run_step regdomain  step_regdomain
+if [ "$VARIANT" = "lite" ]; then
+  run_step ap          step_ap
+  run_step confirm_ap  step_confirm_ap
+  run_step sshd_ap     step_sshd_ap
+fi
+wait_user_bus
+run_step device_pki step_device_pki
+run_step expose     step_expose
+run_step console    step_console
+run_step healthz    step_healthz
+run_step callsign   step_callsign
+run_step swap       step_swap
+
+# ---- complete: redact secrets from the boot config + disable self ----------
+if [ -f "$BOOTCFG" ]; then
+  sed -i -E 's/^(\s*(PASSWORD|AP_PSK|WIFI_PSK)\s*=).*/\1REDACTED/' "$BOOTCFG" 2>/dev/null || true
+fi
+touch "$DONE"
+systemctl disable lhpc-firstboot.service 2>/dev/null || true
+say "FIRSTBOOT COMPLETE (variant=$VARIANT host=$HOSTNAME_FINAL)"

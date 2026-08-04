@@ -1,0 +1,21 @@
+[Unit]
+Description=loraham-images first boot (onboarding: hostname, AP, device PKI, console)
+# Run only until it has completed once.
+ConditionPathExists=!/var/lib/lhpc/.firstboot-done
+# After the Raspberry Pi OS root-expansion mechanism has finished and the network stack
+# is up. The resize hook runs in early boot / its own reboot; by multi-user it is done,
+# and lhpc-firstboot additionally verifies expansion before provisioning swap.
+# firstboot BRINGS UP the network (the AP) itself, so it must NOT wait for network-online.target
+# — an AP-only field box has no upstream and would hang there. Only NM must be running.
+After=NetworkManager.service systemd-user-sessions.target rpi-resize.service
+DefaultDependencies=yes
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/lhpc-firstboot
+# Stays armed on failure (no .firstboot-done written); retried on the next boot.
+TimeoutStartSec=1200
+
+[Install]
+WantedBy=multi-user.target

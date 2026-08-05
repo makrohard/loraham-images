@@ -1,60 +1,107 @@
 # loraham-images
 
-Ready-to-use **Raspberry Pi OS Trixie (arm64)** images with [LHPC](https://github.com/makrohard/loraham-pi-control)
-preinstalled, built in GitHub Actions on native arm64 runners. Flash, boot, use.
+Ready-to-use **Raspberry Pi OS (Trixie, 64-bit)** images with
+[LHPC](https://github.com/makrohard/loraham-pi-control) preinstalled. Flash it, boot it, and set it up
+from your phone or a browser — no Linux experience needed.
 
-| Image | For | Network | Out of the box |
-|-------|-----|---------|----------------|
-| **lite** | headless field box (e.g. Pi Zero 2 W) | its own Wi-Fi access point | console reachable at `https://10.42.0.1:8443` |
-| **desktop** | a Pi with a screen | your Wi-Fi/Ethernet (DHCP) | console on the box itself (loopback) |
+## 1 · Pick an image
 
-## Onboarding defaults (change them after setup)
+| Image | Use it for |
+|-------|-----------|
+| **lite** | a headless Pi (e.g. Pi Zero 2 W). It makes **its own Wi-Fi** so you configure it from a phone. |
+| **desktop** | a Pi with a screen. It joins **your** Wi-Fi/Ethernet and boots to a desktop. |
 
-These are **intentional public defaults** so the box works immediately. They are for local
-commissioning, not permanent secure operation, and the console is not exposed to your LAN or
-the Internet by default.
+## 2 · Download
 
-- user **`lhpc`**, password **`lhpc`**
-- hostname / AP SSID **`lhpc-<device-suffix>`**
-- AP key **`lorahampi`**  · Wi-Fi country **`DE`**
+### → [**Download the latest images**](https://github.com/makrohard/loraham-images/releases/latest)
 
-## Flash
+Grab `loraham-lhpc-lite.img.xz` **or** `loraham-lhpc-desktop.img.xz`.
 
-1. Download `loraham-lhpc-<variant>.img.xz` + verify: `sha256sum -c loraham-lhpc-<variant>.img.xz.sha256`.
-2. Raspberry Pi Imager → *Use custom image* → select the `.img.xz` → write. (Imager's OS
-   customisation is unreliable on Trixie custom images; this image self-configures at first boot.)
-3. Boot. **Lite:** join Wi-Fi `lhpc-…`, open `https://10.42.0.1:8443`. **Desktop:** find it on
-   your network by hostname `lhpc-….local`.
+<details><summary>Check the download is intact (optional)</summary>
 
-Then: change the password, change the AP key, pick hardware, set your callsign. See the
-`README.txt` on the boot partition, and the installed LHPC docs
-(`~/loraham-pi-control/src/loraham-pi-control/README.md`, its `docs/`, `lhpc --help`).
+Download `SHA256SUMS` from the same release, put it beside the image, then:
 
-## Optional pre-boot config
+```bash
+sha256sum -c SHA256SUMS      # should say "OK" for your image
+```
+</details>
 
-Edit `lhpc-config.txt` on the FAT boot partition to override defaults (`HOSTNAME`, `PASSWORD`,
-`AP_SSID`, `AP_PSK`, `WIFI_COUNTRY`, `CALL`, …). Optional — the image boots without it.
+## 3 · Flash
 
-## Moving Lite onto your home Wi-Fi
+1. Install **[Raspberry Pi Imager](https://www.raspberrypi.com/software/)**.
+2. **Choose OS → Use custom** → pick the `.img.xz` you downloaded.
+3. **Choose Storage** → your SD card. *(Ignore Imager's “OS customisation” prompt — this image sets
+   itself up.)*
+4. **Write.** Put the card in the Pi and power on. First boot takes about 1–2 minutes.
 
-Lite's SSH is bound to the AP address `10.42.0.1` and the console is scoped to the AP subnet.
-When you join the box to a normal network the AP address disappears, so reach it on the new
-network and re-point exposure there. Do not open a wildcard SSH listener — that re-exposes the
-shared default password.
+<details><summary>Optional: pre-configure before the first boot</summary>
 
-## Bands (what can run where)
+After flashing, a small drive named **`bootfs`** appears. Open it and edit **`lhpc-config.txt`**
+(plain `KEY=VALUE`, one per line — anything you leave out uses the defaults):
 
-- 433 MHz only: Chat, iGate, MeshCom · 868 MHz only: MeshCore · either band: KISS, Meshtastic,
-  Reticulum, Voice. One owner per band at a time; *installed ≠ simultaneously runnable*; which
-  bands are available depends on the hardware you pick. LHPC refuses conflicting starts.
+```
+HOSTNAME=lhpc-shack
+PASSWORD=choose-a-password
+AP_PSK=choose-a-wifi-key      # at least 8 characters (Lite)
+WIFI_COUNTRY=DE               # set YOUR country if not Germany
+CALL=N0CALL                   # your callsign, once you have one
+```
+</details>
 
-## Security & rotation
+## 4 · Connect
 
-Default credentials + an unpatched base age badly. A **monthly workflow** rebuilds both images
-on the latest base + packages + current LHPC. Always `sudo apt full-upgrade` an older download.
+**Lite** — on your phone/laptop, join the Wi-Fi network **`lhpc-XXXX`** (password **`lorahampi`**),
+then open **`https://10.42.0.1:8443`** and accept the certificate warning.
 
-## Maintenance / upstream asks
+**Desktop** — it joins your network; browse to **`https://lhpc-XXXX.local:8443`** (or just use the
+screen).
 
-See [`docs/maintenance.md`](docs/maintenance.md). Not maintained here: you update LHPC on the
-running box, not by reflashing. Upstream asks: `install.sh --ref`, treat `N0CALL` as unset in
-the console, hardware-in-the-loop Gate B.
+Sign in: user **`lhpc`**, password **`lhpc`**. On Lite you can also `ssh lhpc@10.42.0.1`.
+
+## 5 · Do these first ⚠️
+
+The defaults are **public** — change them straight away, in the Web GUI:
+
+1. **Change the OS password.**
+2. **Change the Wi-Fi AP key** (Lite).
+3. **Set your callsign** — daemon settings *(or `lhpc config operator --callsign YOURCALL`)*.
+4. **Pick your radio hardware** — nothing can transmit until you do.
+
+> Booting the image starts **no radio stack** and transmits **nothing** on its own. The console is
+> reachable only on the Lite access point (or locally on Desktop), not your LAN — keep it that way
+> until you deliberately expose it (turn on the managed firewall first).
+
+<details><summary>Troubleshooting</summary>
+
+- **No `lhpc-XXXX` Wi-Fi after ~2 min** — re-seat/re-flash the card; check power. The country must be
+  set (it is, to `DE`, unless you changed it).
+- **Web GUI won't open** — you must be **on the AP** (Lite) or the same network (Desktop); accept the
+  self-signed certificate warning.
+- **Moved the box onto your home Wi-Fi?** The AP address `10.42.0.1` (and AP-only SSH) go away — reach
+  it on the new network instead. Don't open a wildcard SSH listener (it re-exposes the default password).
+- **First boot still running / failed** — logs are in `/var/log/lhpc-firstboot.log`; it retries on the
+  next boot.
+</details>
+
+<details><summary>Which stacks run on which band</summary>
+
+433 MHz: Chat, iGate, MeshCom · 868 MHz: MeshCore · either band: KISS, Meshtastic, Reticulum, Voice.
+Only one owner per band at a time; *installed ≠ running*; available bands depend on the hardware you
+pick. LHPC refuses conflicting starts.
+</details>
+
+<details><summary>Updating &amp; maintenance</summary>
+
+- Update LHPC on the running box: `lhpc self-update` (or the one-click updater in the console).
+- OS packages: `sudo apt full-upgrade`.
+- Fresh images are rebuilt monthly (latest base + packages + LHPC). Update the box in place — you don't
+  need to reflash. Maintainer notes: [`docs/maintenance.md`](docs/maintenance.md).
+</details>
+
+---
+
+**Defaults** (for local commissioning only — change them): user `lhpc` / `lhpc` · AP `lhpc-XXXX` /
+`lorahampi` · Wi-Fi country `DE`. `XXXX` is a per-device suffix.
+
+**More docs** live on the Pi: `~/loraham-pi-control/src/loraham-pi-control/README.md`, its `docs/`, and
+`lhpc --help`.

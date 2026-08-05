@@ -24,9 +24,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Resolve the build matrix and, for schedule/refresh, decide if anything CHANGED
-  # (latest base sha per variant + resolved LHPC main) vs the latest release — cheaply,
-  # WITHOUT a full build. build/publish are skipped when nothing changed.
+  # Fast gate: shellcheck + bash -n + config/workflow sanity (tests/static.sh). Gates the build.
   lint:
     runs-on: ubuntu-24.04-arm
     permissions:
@@ -121,7 +119,7 @@ jobs:
             [ -f "$img" ] || { echo "no image for $v (independent publish)"; continue; }
             sz=$(stat -c%s "$img"); [ "$sz" -le 2147483648 ] || { echo "::error::$v $sz > 2GiB"; exit 1; }
             cp "dl/image-$v/loraham-lhpc-$v.img.xz" "dl/image-$v/loraham-lhpc-$v.img.xz.sha256" rel/ 2>/dev/null || true
-            cp "dl/image-$v/lhpc-image.json" "rel/provenance-$v.json" 2>/dev/null || true
+            cp "dl/logs-$v/lhpc-image.json" "rel/provenance-$v.json" 2>/dev/null || true
             cp "dl/logs-$v/lhpc-packages.log" "rel/packages-$v.txt" 2>/dev/null || true
             cp "dl/logs-$v/lhpc-versions.log" "rel/components-$v.txt" 2>/dev/null || true
           done
@@ -158,7 +156,7 @@ jobs:
             [ -f "$img" ] || { echo "no image for $v"; continue; }
             sz=$(stat -c%s "$img"); [ "$sz" -le 2147483648 ] || { echo "::error::$v $sz > 2GiB"; exit 1; }
             cp "dl/image-$v/loraham-lhpc-$v.img.xz" "dl/image-$v/loraham-lhpc-$v.img.xz.sha256" rel/ 2>/dev/null || true
-            cp "dl/image-$v/lhpc-image.json" "rel/provenance-$v.json" 2>/dev/null || true
+            cp "dl/logs-$v/lhpc-image.json" "rel/provenance-$v.json" 2>/dev/null || true
             cp "dl/logs-$v/lhpc-packages.log" "rel/packages-$v.txt" 2>/dev/null || true
             cp "dl/logs-$v/lhpc-versions.log" "rel/components-$v.txt" 2>/dev/null || true
           done

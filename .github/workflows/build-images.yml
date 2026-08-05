@@ -9,7 +9,7 @@ on:
         options: [lite, desktop, both]
         default: lite
       refresh:
-        description: refresh mode (build both + publish a DATED release only if base/packages/LHPC changed)
+        description: refresh mode (resolve base+LHPC; build both + publish a DATED release ONLY if changed)
         type: boolean
         default: false
   push:
@@ -24,57 +24,81 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  select:
+  # Resolve the build matrix and, for schedule/refresh, decide if anything CHANGED
+  # (latest base sha per variant + resolved LHPC main) vs the latest release — cheaply,
+  # WITHOUT a full build. build/publish are skipped when nothing changed.
+  precheck:
     runs-on: ubuntu-24.04-arm
     outputs:
-      matrix: ${{ steps.m.outputs.matrix }}
+      changed: ${{ steps.c.outputs.changed }}
+      matrix: ${{ steps.c.outputs.matrix }}
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - id: m
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - id: c
         run: |
+          set -e
           if [ "${{ github.event_name }}" = workflow_dispatch ] && [ "${{ github.event.inputs.refresh }}" != true ]; then
             v="${{ github.event.inputs.variant }}"
           else
-            v="both"   # tags, schedule, and refresh dispatch all build both
+            v="both"
           fi
           case "$v" in
             lite)    echo 'matrix={"variant":["lite"]}' >> "$GITHUB_OUTPUT" ;;
             desktop) echo 'matrix={"variant":["desktop"]}' >> "$GITHUB_OUTPUT" ;;
             *)       echo 'matrix={"variant":["lite","desktop"]}' >> "$GITHUB_OUTPUT" ;;
           esac
+          if [ "${{ github.event_name }}" = schedule ] || [ "${{ github.event.inputs.refresh }}" = true ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends curl ca-certificates git python3 >/dev/null
+            lb=$(bash builder/resolve-base.sh raspios_lite_arm64 | awk '{print $2}')
+            db=$(bash builder/resolve-base.sh raspios_arm64 | awk '{print $2}')
+            lc=$(bash builder/resolve-lhpc.sh resolve)
+            mkdir -p sig
+            printf '{"base_sha256":"%s","lhpc_commit":"%s"}\n' "$lb" "$lc" > sig/provenance-lite.json
+            printf '{"base_sha256":"%s","lhpc_commit":"%s"}\n' "$db" "$lc" > sig/provenance-desktop.json
+            NEW=$(python3 builder/signature.py sig); echo "new signature: $NEW"
+            OLD=""; last=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
+            if [ -n "$last" ]; then gh release download "$last" -p signature.txt -D prev 2>/dev/null || true; OLD=$(cat prev/signature.txt 2>/dev/null || echo ''); fi
+            echo "latest release ($last) signature: $OLD"
+            if [ "$NEW" = "$OLD" ]; then
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              echo "NO CHANGE (base/LHPC identical to $last) — skipping build+publish (no duplicate)."
+            else
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              echo "CHANGE detected — will build + publish a dated release."
+            fi
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
   build:
-    needs: select
+    needs: precheck
+    if: ${{ needs.precheck.outputs.changed == 'true' }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 300
     permissions:
       contents: read
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.precheck.outputs.matrix) }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-
       - name: Assert native arm64 runner
         run: test "$(uname -m)" = aarch64 || { echo "not aarch64 - refuse to emulate"; exit 1; }
-
       - name: Free disk + install build deps
         run: |
           set -x
-          df -h /
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL 2>/dev/null || true
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             systemd-container xz-utils e2fsprogs parted zerofree curl ca-certificates \
             rsync fdisk util-linux dosfstools nftables iptables python3 jq
           df -h /
-
       - name: Build ${{ matrix.variant }}
         env:
           WORKFLOW_RUN_ID: ${{ github.run_id }}
-        run: |
-          sudo -E env WORK="$PWD/work" OUT="$PWD/out" WORKFLOW_RUN_ID="$WORKFLOW_RUN_ID" \
-            bash builder/build.sh ${{ matrix.variant }}
-
+        run: sudo -E env WORK="$PWD/work" OUT="$PWD/out" WORKFLOW_RUN_ID="$WORKFLOW_RUN_ID" bash builder/build.sh ${{ matrix.variant }}
       - name: Upload logs (always)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -83,7 +107,6 @@ jobs:
           path: out/logs-${{ matrix.variant }}/**
           if-no-files-found: warn
           retention-days: 14
-
       - name: Upload image (on success)
         if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -97,7 +120,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  # ----- assemble a release directory from the built artifacts (shared) -----
+  # tag release: publish each variant independently (a failed/oversized Desktop cannot block Lite)
   publish-tag:
     needs: build
     if: ${{ always() && startsWith(github.ref, 'refs/tags/v') }}
@@ -110,8 +133,7 @@ jobs:
         with: { path: dl }
       - name: Assemble + verify under cap + signature
         run: |
-          set -e
-          mkdir -p rel
+          set -e; mkdir -p rel
           for v in lite desktop; do
             img="dl/image-$v/loraham-lhpc-$v.img.xz"
             [ -f "$img" ] || { echo "no image for $v (independent publish)"; continue; }
@@ -127,10 +149,10 @@ jobs:
           files: rel/*
           fail_on_unmatched_files: false
 
-  # ----- monthly / manual refresh: publish a DATED release only on change ---
+  # monthly/manual refresh: only runs when precheck found a change; publishes a DATED release
   publish-refresh:
-    needs: build
-    if: ${{ always() && (github.event_name == 'schedule' || github.event.inputs.refresh == 'true') }}
+    needs: [precheck, build]
+    if: ${{ always() && needs.precheck.outputs.changed == 'true' && (github.event_name == 'schedule' || github.event.inputs.refresh == 'true') }}
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
@@ -140,10 +162,9 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
         with: { path: dl }
-      - name: Assemble, compare signature, publish dated release on change
+      - name: Assemble + publish dated release
         run: |
-          set -e
-          mkdir -p rel
+          set -e; mkdir -p rel
           for v in lite desktop; do
             img="dl/image-$v/loraham-lhpc-$v.img.xz"
             [ -f "$img" ] || { echo "no image for $v"; continue; }
@@ -152,22 +173,7 @@ jobs:
             cp "dl/image-$v/lhpc-image.json" "rel/provenance-$v.json" 2>/dev/null || true
           done
           ( cd rel && sha256sum ./*.img.xz > SHA256SUMS || true )
-          # signature over {base sha per variant, lhpc commit} — NOT the image hash (non-reproducible)
-          NEW_SIG="$(python3 builder/signature.py rel)"
-          echo "$NEW_SIG" > rel/signature.txt
-          echo "new signature: $NEW_SIG"
-          OLD_SIG=""
-          last="$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)"
-          if [ -n "$last" ]; then
-            gh release download "$last" -p signature.txt -D prev 2>/dev/null || true
-            OLD_SIG="$(cat prev/signature.txt 2>/dev/null || echo '')"
-            echo "latest release $last signature: $OLD_SIG"
-          fi
-          if [ "$NEW_SIG" = "$OLD_SIG" ]; then
-            echo "No change (base/packages/LHPC identical to $last) - finishing green without a duplicate release."
-            exit 0
-          fi
-          TAG="img-$(python3 -c 'import datetime,os; print(datetime.datetime.utcnow().strftime("%Y.%m.%d-%H%M"))')"
-          echo "change detected - publishing dated release $TAG"
-          gh release create "$TAG" rel/* --title "$TAG" --notes "Refreshed images.
-          signature: $NEW_SIG"
+          SIG="$(python3 builder/signature.py rel)"; echo "$SIG" > rel/signature.txt
+          TAG="img-$(python3 -c 'import datetime; print(datetime.datetime.utcnow().strftime("%Y.%m.%d-%H%M"))')"
+          echo "publishing dated release $TAG (signature $SIG)"
+          gh release create "$TAG" rel/* --title "$TAG" --notes "Refreshed images (monthly). signature: $SIG"

@@ -221,23 +221,11 @@ ln -sf ../lhpc-firstboot.service "$ROOT/etc/systemd/system/multi-user.target.wan
 mkdir -p "$ROOT/etc/systemd/system/sysinit.target.wants"
 ln -sf ../lhpc-growroot.service "$ROOT/etc/systemd/system/sysinit.target.wants/lhpc-growroot.service"
 
-# Re-arm the base's first-boot rootfs grow. rpi-resize.service is ConditionFirstBoot=yes and
-# disables itself when it runs (ExecStartPost) — and it RAN during our nspawn provisioning boot
-# (empty machine-id ⇒ first boot), so the shipped image would reach the Pi with the fs-grow
-# already spent. Re-enable it (WantedBy=sysinit.target) via a manual symlink — offline-safe, like
-# the firstboot arming above — so the real first boot grows the fs EARLY, before rpi-swap etc. hit
-# the release-sized fs. firstboot's step_growroot is the robust backstop.
-rpi_resize_unit=""
-for _p in usr/lib/systemd/system/rpi-resize.service lib/systemd/system/rpi-resize.service; do
-  [ -f "$ROOT/$_p" ] && { rpi_resize_unit="/$_p"; break; }
-done
-if [ -n "$rpi_resize_unit" ]; then
-  mkdir -p "$ROOT/etc/systemd/system/sysinit.target.wants"
-  ln -sf "$rpi_resize_unit" "$ROOT/etc/systemd/system/sysinit.target.wants/rpi-resize.service"
-  log "re-armed rpi-resize.service (early first-boot rootfs grow)"
-else
-  log "WARN: rpi-resize.service not in base — firstboot step_growroot is the only expansion path"
-fi
+# SINGLE expansion owner: lhpc-growroot.service (above) does growpart+resize2fs itself and is
+# ordered before the base swap setup. We deliberately DO NOT re-arm the base rpi-resize.service —
+# it pulls systemd-growfs-root, and an unordered second resizer racing lhpc-growroot on the same
+# live partition is a real hazard. Our nspawn build boot already consumed+disabled rpi-resize
+# (ConditionFirstBoot self-disable); seal.sh asserts it stays disabled so the two never coexist.
 # systemd-networkd-wait-online only ever fails on this NetworkManager image (networkd is unused);
 # mask it (symlink to /dev/null) so it stops surfacing as a failed unit at boot. NM provides
 # network-online.target readiness via NetworkManager-wait-online, so this is safe.

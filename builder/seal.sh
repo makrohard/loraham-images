@@ -121,14 +121,20 @@ if ls "$ROOT"/usr/bin/growpart "$ROOT"/bin/growpart "$ROOT"/usr/sbin/growpart "$
 else
   die "seal failed: growpart not in image — lhpc-growroot cannot grow the partition"
 fi
-# The base's EARLY grow (rpi-resize.service) is re-armed too (disarm re-enables it after our build
-# boot consumed it) so on-boot services get space even before lhpc-growroot. Advisory: lhpc-growroot
-# guarantees expansion regardless, so a disabled rpi-resize is a warning, not a hard seal failure.
+# firstboot must HARD-depend on a successful expansion, so it never writes to an unexpanded fs.
+# Requires= propagates failure ONLY together with After= (ordering) — assert BOTH are present.
+fbunit="$ROOT/etc/systemd/system/lhpc-firstboot.service"
+grep -q '^Requires=lhpc-growroot.service' "$fbunit" \
+  || die "seal failed: lhpc-firstboot.service missing Requires=lhpc-growroot.service (failure would not block firstboot)"
+grep -qE '^After=.*\blhpc-growroot\.service\b' "$fbunit" \
+  || die "seal failed: lhpc-firstboot.service missing After=lhpc-growroot.service (Requires= without ordering does not block on failure)"
+# SINGLE owner: the base rpi-resize.service must NOT be armed alongside lhpc-growroot — two
+# unordered resizers on the same live partition is a race. Our build boot consumes+disables it;
+# fail the seal if anything left it enabled.
 if [ -L "$ROOT/etc/systemd/system/sysinit.target.wants/rpi-resize.service" ]; then
-  log "assert OK: rpi-resize.service re-armed (early on-boot grow, before rpi-swap)"
-else
-  log "assert WARN: rpi-resize.service not re-armed — early on-boot services may briefly hit the release-sized fs until lhpc-growroot runs"
+  die "seal failed: rpi-resize.service is still armed alongside lhpc-growroot — two concurrent resizers"
 fi
+log "assert OK: firstboot Requires growroot; rpi-resize not armed (single expansion owner)"
 
 group_end
 log "SEAL OK"

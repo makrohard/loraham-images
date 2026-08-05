@@ -37,15 +37,18 @@ command -v resize2fs >/dev/null 2>&1 || die "resize2fs is required but not insta
 # Grow the partition into any free space after it. growpart exits non-zero with NOCHANGE when the
 # partition already fills the disk — that is success. Any other failure is tolerated only if the
 # postcondition below proves the partition already fills the card.
-if growpart "$diskdev" "$partnum" >/tmp/lhpc-growpart.out 2>&1; then
-  log "growpart: $(tail -1 /tmp/lhpc-growpart.out)"
+# NB: capture to /run (tmpfs) — NEVER a rootfs path (/tmp, /var). This runs precisely when the
+# rootfs may be full; a rootfs-backed temp file could fail to create before growpart even runs.
+gp_out=/run/lhpc-growpart.out
+if growpart "$diskdev" "$partnum" >"$gp_out" 2>&1; then
+  log "growpart: $(tail -1 "$gp_out")"
   partprobe "$diskdev" 2>/dev/null || partx -u "$diskdev" 2>/dev/null || true
-elif grep -qi 'NOCHANGE' /tmp/lhpc-growpart.out; then
+elif grep -qi 'NOCHANGE' "$gp_out"; then
   log "growpart: partition already fills the disk"
 else
-  log "growpart: WARNING — $(tail -1 /tmp/lhpc-growpart.out) (verifying size below)"
+  log "growpart: WARNING — $(tail -1 "$gp_out") (verifying size below)"
 fi
-rm -f /tmp/lhpc-growpart.out
+rm -f "$gp_out"
 
 # Grow the filesystem to the partition size (online, idempotent).
 resize2fs "$src" 2>&1 | sed 's/^/  resize2fs: /' || die "resize2fs failed on $src"

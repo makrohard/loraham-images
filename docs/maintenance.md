@@ -10,8 +10,9 @@ A checklist for the repo owner. What CI enforces vs. what is manual, plus the ho
 - provisioning marker `/var/lib/lhpc/.provisioned` + `/etc/lhpc-image.json` populated
 - **AP DHCP/NAT deps present** (`dnsmasq-base` + nftables/iptables) — else Lite hands out no address
 - seal: no private-key PEM markers anywhere; LHPC PKI/host-keys/machine-id gone; account hash ==
-  documented onboarding password; rootfs expansion owned by firstboot `step_growroot` (+ `rpi-resize`
-  re-armed for the early on-boot grow — our build boot consumes it, disarm re-enables it)
+  documented onboarding password; rootfs expansion owned SOLELY by `lhpc-growroot.service` (armed +
+  `growpart` present, both hard-asserted; firstboot `Requires=` it; base `rpi-resize` must stay
+  disabled — seal fails on a second armed resizer)
 - Gate A2 (throwaway copy, `--private-network`): out-of-box journey — user units, `/healthz`, web
   GUI loads, Lite recovery sshd on all interfaces (Desktop off), daemon start refused, fresh device
   PKI, swap fixture, firstboot idempotent — plus the **cold-reboot** gate + host-netns-unchanged
@@ -21,8 +22,9 @@ A checklist for the repo owner. What CI enforces vs. what is manual, plus the ho
 - real Raspberry Pi firmware/device-tree boot, SPI/GPIO, radio operation
 - **real rootfs expansion** — CI grows a throwaway copy to *simulate* it, so a broken resize passes CI.
   Found live 2026-08-05: the base's `rpi-resize` self-disables during our build boot → fs never grew →
-  100% full → firstboot died at ENOSPC. Fixed: `step_growroot` (growpart+resize2fs) owns it, `rpi-resize`
-  re-armed. **A real Pi first boot must still be smoke-tested after base rolls.**
+  100% full → firstboot died at ENOSPC. Fixed: `lhpc-growroot.service` (early oneshot, fail-closed,
+  growpart+resize2fs + size postconditions) is the sole owner; firstboot `Requires=` it. **A real Pi
+  first boot must still be smoke-tested after base rolls.**
 - **on-radio AP activation + live client DHCP** (nspawn has no wifi device; CI proves the
   address-dependent half and package presence, see R17)
 

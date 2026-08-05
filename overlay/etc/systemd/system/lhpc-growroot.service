@@ -4,9 +4,11 @@ Documentation=man:growpart(1) man:resize2fs(8)
 DefaultDependencies=no
 Conflicts=shutdown.target
 After=systemd-remount-fs.service
-# Run before ANY first-boot writes and before swap/local-fs setup, so nothing touches a full
-# release-sized filesystem first. Fail-closed: on hardware it must expand and verify.
-Before=local-fs.target swap.target lhpc-firstboot.service shutdown.target
+# Run before ANY first-boot writes and before local-fs/swap setup, so nothing touches a full
+# release-sized filesystem first. This is the SOLE expansion owner (we do not re-arm the base's
+# rpi-resize/systemd-growfs), so ordering before the base swap-file setup is load-bearing: it gives
+# rpi-swap free space instead of failing on the release-sized fs. Fail-closed on hardware.
+Before=local-fs.target swap.target rpi-setup-loop@var-swap.service rpi-resize-swap-file.service lhpc-firstboot.service shutdown.target
 
 [Service]
 Type=oneshot

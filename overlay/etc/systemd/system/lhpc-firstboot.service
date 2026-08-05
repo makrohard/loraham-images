@@ -2,12 +2,14 @@
 Description=loraham-images first boot (onboarding: hostname, AP, device PKI, console)
 # Run only until it has completed once.
 ConditionPathExists=!/var/lib/lhpc/.firstboot-done
-# After the Raspberry Pi OS root-expansion mechanism has finished and the network stack
-# is up. The resize hook runs in early boot / its own reboot; by multi-user it is done,
-# and lhpc-firstboot additionally verifies expansion before provisioning swap.
-# firstboot BRINGS UP the network (the AP) itself, so it must NOT wait for network-online.target
-# — an AP-only field box has no upstream and would hang there. Only NM must be running.
-After=NetworkManager.service systemd-user-sessions.target rpi-resize.service
+# Root expansion is a HARD prerequisite: lhpc-growroot.service must succeed first, or firstboot
+# must not start (and not write to an unexpanded filesystem). Requires= propagates its failure;
+# After= orders us after it. (Before= alone only orders, it does not propagate failure.)
+Requires=lhpc-growroot.service
+After=lhpc-growroot.service
+# Also after NetworkManager + user sessions. firstboot BRINGS UP the network (the AP) itself, so
+# it must NOT wait for network-online.target — an AP-only field box has no upstream and would hang.
+After=NetworkManager.service systemd-user-sessions.target
 DefaultDependencies=yes
 
 [Service]

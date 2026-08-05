@@ -61,7 +61,9 @@ then open **`https://10.42.0.1:8443`** and accept the certificate warning.
 desktop's network menu (or use Ethernet), then open a browser **on the Pi** and go to
 **`https://127.0.0.1:8443`**. (The console is local-only until you choose to expose it.)
 
-On Lite you can also `ssh lhpc@10.42.0.1` (user **`lhpc`**, password **`lhpc`**).
+On Lite, SSH is on for recovery (user **`lhpc`**, password **`lhpc`**) — reachable on **any** network
+the Pi is on: `ssh lhpc@10.42.0.1` over the access point, or `ssh lhpc@<pi-ip>` over Ethernet/your Wi-Fi.
+Change the password immediately (below). The **Web GUI** stays AP-only; only SSH is reachable off the AP.
 
 ## 5 · Do these first ⚠️
 
@@ -93,8 +95,10 @@ The defaults are **public** — change them straight away. Open a terminal: on *
 - **Web GUI won't open** — on **Lite** you must be joined to the AP and use `https://10.42.0.1:8443`; on
   **Desktop** the console is local-only, so open `https://127.0.0.1:8443` **on the Pi itself**. Accept the
   self-signed certificate warning.
-- **Moved the box onto your home Wi-Fi?** The AP address `10.42.0.1` (and AP-only SSH) go away — reach
-  it on the new network instead. Don't open a wildcard SSH listener (it re-exposes the default password).
+- **Moved the box onto your home Wi-Fi?** The AP address `10.42.0.1` and the AP-scoped Web GUI go away.
+  **SSH stays reachable** on the box's new IP (`ssh lhpc@<pi-ip>`) — which is exactly why changing the
+  default password first matters. To get the Web GUI back on the new network, expose it deliberately
+  (turn on the managed firewall first).
 - **First boot still running / failed** — logs are in `/var/log/lhpc-firstboot.log`; it retries on the
   next boot.
 </details>

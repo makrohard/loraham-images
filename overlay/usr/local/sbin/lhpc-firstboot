@@ -3,8 +3,9 @@
 # public onboarding defaults; no lhpc-config.txt edit is required. On any failure it stays
 # armed (unit not marked done) with the AP + SSH recovery path left up where possible.
 #
-# Runs after the Raspberry Pi OS root-expansion mechanism (unit ordering). Substitutes
-# absent hardware only under LHPC_FIRSTBOOT_CI=1 (Gate A2), never in the sealed image.
+# Owns rootfs expansion itself (step_growroot) — the base's rpi-resize.service is
+# ConditionFirstBoot and gets consumed by our nspawn build boot, so it never runs on the Pi.
+# Substitutes absent hardware only under LHPC_FIRSTBOOT_CI=1 (Gate A2), never in the sealed image.
 set -o errexit -o nounset -o pipefail
 
 STATE=/var/lib/lhpc/firstboot.d
@@ -120,6 +121,36 @@ EXPOSE="$(ov EXPOSE_SCOPE "${EXPOSE_SCOPE:-none}")"
 AP_ADDR="${AP_ADDR:-10.42.0.1}"; AP_PREFIX="${AP_PREFIX:-24}"; AP_CIDR="${AP_CIDR:-10.42.0.0/24}"
 
 # =====================  STEPS  ==============================================
+step_growroot(){
+  # Grow the root filesystem to fill its partition. The base's first-boot resize
+  # (rpi-resize.service, ConditionFirstBoot=yes, disables itself after running) is CONSUMED by
+  # our nspawn build boot, so it never fires on real hardware — we own expansion here. The
+  # partition grow survives the base mechanism (growpart is a backstop). Idempotent: resize2fs
+  # on an already-full fs is a no-op. A real block-device resize is hardware Gate B (no device
+  # in nspawn), so CI skips this and the gate pre-grows its throwaway copy instead.
+  if [ "$CI" = "1" ]; then say "CI mode: skipping rootfs grow (no real block device; Gate B on hardware)"; return 0; fi
+  local src part disk partnum
+  src="$(findmnt -no SOURCE / 2>/dev/null || true)"
+  case "$src" in /dev/*) : ;; *) say "growroot: root '$src' is not a block device — skipping"; return 0;; esac
+  part="${src#/dev/}"
+  disk="$(lsblk -no PKNAME "$src" 2>/dev/null | head -1)"
+  partnum="$(cat "/sys/class/block/$part/partition" 2>/dev/null || true)"
+  # Extend the partition into any free space after it (no-op when it already fills the disk).
+  if [ -n "$disk" ] && [ -n "$partnum" ] && command -v growpart >/dev/null 2>&1; then
+    if growpart "/dev/$disk" "$partnum" >/tmp/lhpc-growpart 2>&1; then
+      say "growroot: extended partition — $(tail -1 /tmp/lhpc-growpart)"
+      partprobe "/dev/$disk" 2>/dev/null || partx -u "/dev/$disk" 2>/dev/null || true
+    elif grep -qi 'NOCHANGE' /tmp/lhpc-growpart; then
+      say "growroot: partition already fills the disk"
+    else
+      say "growroot: growpart did not extend the partition — $(tail -1 /tmp/lhpc-growpart)"
+    fi
+    rm -f /tmp/lhpc-growpart
+  fi
+  # Grow the filesystem to the partition size (online resize of the mounted root; idempotent).
+  resize2fs "$src" 2>&1 | sed 's/^/  resize2fs: /' || fail "resize2fs failed to grow $src"
+  say "growroot: root fs now $(df -h / | awk 'NR==2{print $2" ("$5" used)"}')"
+}
 step_identity(){ systemd-machine-id-setup >/dev/null 2>&1 || true; }
 step_hostname(){
   hostnamectl set-hostname "$HOSTNAME_FINAL" 2>/dev/null || echo "$HOSTNAME_FINAL" > /etc/hostname
@@ -130,8 +161,8 @@ step_hostname(){
 step_account(){ printf '%s:%s\n' "$OP" "$OS_PW" | chpasswd; }
 step_hostkeys(){
   ssh-keygen -A
-  # Disable BOTH the service and the socket (Trixie socket-activates ssh; the socket keeps
-  # *:22 open regardless of ssh.service). Lite re-enables ssh.service AP-bound in step_sshd_ap.
+  # Default OFF for both variants (Trixie socket-activates ssh, so disable the socket too).
+  # Lite turns on recovery SSH on all interfaces in step_sshd; Desktop leaves it off (opt-in).
   systemctl disable --now ssh.socket 2>/dev/null || true
   systemctl disable --now ssh.service 2>/dev/null || true
 }
@@ -176,32 +207,19 @@ step_confirm_ap(){
   for _ in $(seq 1 20); do ip -4 addr show | grep -q "inet $AP_ADDR/" && return 0; sleep 1; done
   fail "AP address $AP_ADDR not present"
 }
-step_sshd_ap(){
-  install -d -m0755 /etc/ssh/sshd_config.d
-  cat > /etc/ssh/sshd_config.d/10-lhpc-ap.conf <<EOF
-# loraham-images: recovery SSH bound to the AP address only (no wildcard, no IPv6).
-ListenAddress $AP_ADDR
-AddressFamily inet
-EOF
-  install -d -m0755 /run/sshd   # privilege-separation dir (normally made by ssh.service at boot)
-  sshd -t -f /etc/ssh/sshd_config || fail "sshd config invalid"
-  # race-safe: allow bind before the address exists so a restart-loop recovers.
-  sysctl -q -w net.ipv4.ip_nonlocal_bind=1 2>/dev/null || true
-  mkdir -p /etc/systemd/system/ssh.service.d
-  cat > /etc/systemd/system/ssh.service.d/10-lhpc-ap.conf <<'EOF'
-[Unit]
-After=NetworkManager.service
-Wants=NetworkManager.service
-[Service]
-Restart=on-failure
-RestartSec=3s
-EOF
-  systemctl daemon-reload
-  # Trixie socket-activates ssh (ssh.socket binds ALL interfaces, ignoring sshd_config
-  # ListenAddress). Disable it so ssh.service honours the AP-only ListenAddress.
-  systemctl disable --now ssh.socket 2>/dev/null || true
-  systemctl enable ssh.service 2>/dev/null || true
-  systemctl restart ssh.service || fail "sshd failed to start on the AP address"
+step_sshd(){
+  # Recovery SSH for Lite on ALL interfaces (Ethernet, USB-NIC, AP). Deliberately NOT bound to
+  # the AP address: a first-boot failure must never lock the operator out of a wired recovery
+  # path (an AP-only bind did exactly that). Uses the documented onboarding password — the
+  # README instructs changing it immediately. Desktop leaves SSH off by default.
+  rm -f /etc/ssh/sshd_config.d/10-lhpc-ap.conf                 # drop any stale AP-only bind
+  rm -f /etc/systemd/system/ssh.service.d/10-lhpc-ap.conf 2>/dev/null || true
+  systemctl daemon-reload 2>/dev/null || true
+  install -d -m0755 /run/sshd                                  # privilege-separation dir
+  sshd -t || fail "sshd config invalid"
+  # Trixie socket-activates ssh on *:22; prefer the socket, fall back to the service.
+  systemctl enable --now ssh.socket 2>/dev/null || systemctl enable --now ssh.service \
+    || fail "sshd failed to start"
 }
 step_device_pki(){
   # fresh per-device CA + server cert. Loopback + hostname + (Lite) AP SANs.
@@ -278,15 +296,17 @@ step_swap(){
 }
 
 # =====================  ORDER  =============================================
+run_step growroot   step_growroot      # grow rootfs to fill the card BEFORE anything writes
 run_step identity   step_identity
 run_step hostname   step_hostname
 run_step account    step_account
 run_step hostkeys   step_hostkeys
+# Lite: bring recovery SSH up EARLY (all interfaces) so a later step failure can't lock us out.
+if [ "$VARIANT" = "lite" ]; then run_step sshd step_sshd; fi
 run_step regdomain  step_regdomain
 if [ "$VARIANT" = "lite" ]; then
   run_step ap          step_ap
   run_step confirm_ap  step_confirm_ap
-  run_step sshd_ap     step_sshd_ap
 fi
 wait_user_bus
 run_step device_pki step_device_pki

@@ -56,12 +56,13 @@ ok "/healthz answers"
 curl -fsSk --max-time 5 "https://$ADDR:$PORT/" | grep -qiE '<html|lhpc|console' || fail "web GUI did not load at $ADDR"
 ok "web GUI loads"
 
-# SSH policy
+# SSH policy: Lite exposes recovery SSH on ALL interfaces — a wired recovery path must survive a
+# first-boot failure (an AP-only bind previously locked the operator out). Desktop keeps SSH off.
 listeners="$(ss -H -tlnp 'sport = :22' 2>/dev/null | awk '{print $4}')"
 if [ "${VARIANT:-lite}" = "lite" ]; then
-  echo "$listeners" | grep -q '^10\.42\.0\.1:22$' || fail "sshd not listening on 10.42.0.1:22 (got: $listeners)"
-  echo "$listeners" | grep -qE '(^0\.0\.0\.0:22|^\[::\]:22|192\.168\.50\.10:22)' && fail "sshd on a wildcard/non-AP address: $listeners"
-  ok "sshd bound to 10.42.0.1 only"
+  echo "$listeners" | grep -qE '(^0\.0\.0\.0:22$|^\*:22$|^\[::\]:22$)' \
+    || fail "Lite recovery sshd not listening on all interfaces (got: ${listeners:-none})"
+  ok "Lite recovery sshd on all interfaces"
 else
   [ -z "$listeners" ] || fail "Desktop sshd should be off, but port 22 listens: $listeners"
   ok "Desktop sshd off"

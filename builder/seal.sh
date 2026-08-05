@@ -106,15 +106,23 @@ then log "assert OK: operator password hash matches the documented default"
 else die "seal failed: operator hash does not match the documented onboarding password"
 fi
 
-# (f) root-expansion mechanism still present (Trixie uses either the cmdline init hook
-# OR a systemd rpi-resize.service — accept either).
-if grep -qE 'init_resize|firstboot' "$ROOT/boot/firmware/cmdline.txt" 2>/dev/null; then
-  log "assert OK: cmdline.txt root-expansion hook intact"
-elif ls "$ROOT"/lib/systemd/system/*resize* "$ROOT"/usr/lib/systemd/system/*resize* >/dev/null 2>&1 \
-     || ls "$ROOT"/etc/systemd/system/*/*resize* >/dev/null 2>&1; then
-  log "assert OK: systemd root-expansion service (rpi-resize) present"
+# (f) root-filesystem expansion is OWNED by lhpc-firstboot. The base's rpi-resize.service is
+# ConditionFirstBoot=yes and disables itself the moment it runs — and it runs (and self-disables)
+# during our nspawn provisioning boot, so it is already spent before the image reaches hardware.
+# Relying on it (as an earlier "unit present" check did) left the fs unexpanded on real Pis.
+# Assert instead that firstboot carries step_growroot (growpart + resize2fs) and is armed.
+if grep -q 'step_growroot' "$ROOT/usr/local/sbin/lhpc-firstboot" 2>/dev/null; then
+  log "assert OK: lhpc-firstboot owns rootfs expansion (step_growroot present)"
 else
-  die "seal failed: no root-expansion mechanism (cmdline hook or rpi-resize.service) found"
+  die "seal failed: lhpc-firstboot lacks step_growroot — rootfs would never expand on hardware"
+fi
+# The base's EARLY grow (rpi-resize.service) should be re-armed too (disarm re-enables it after our
+# build boot consumed it) so on-boot services get space before firstboot. Advisory: step_growroot
+# guarantees expansion regardless, so a disabled rpi-resize is a warning, not a hard seal failure.
+if [ -L "$ROOT/etc/systemd/system/sysinit.target.wants/rpi-resize.service" ]; then
+  log "assert OK: rpi-resize.service re-armed for the real first boot"
+else
+  log "assert WARN: rpi-resize.service not re-armed — early on-boot services may hit the release-sized fs until step_growroot runs"
 fi
 
 group_end

@@ -36,9 +36,14 @@ ok "firstboot completed (state=$(systemctl is-system-running 2>/dev/null || echo
 for _ in $(seq 1 30); do [ -S "$XRD/bus" ] && break; sleep 1; done
 [ -S "$XRD/bus" ] || fail "operator user bus absent"
 systemctl is-active "user@$UID_OP.service" >/dev/null 2>&1 && ok "user manager active" || fail "user manager not active"
-for _ in $(seq 1 30); do as_op systemctl --user is-active lhpc-web.service >/dev/null 2>&1 && break; sleep 2; done
-as_op systemctl --user is-active lhpc-web.service   >/dev/null 2>&1 || fail "lhpc-web user unit not active"
-as_op systemctl --user is-active lhpc-nginx.service >/dev/null 2>&1 || fail "lhpc-nginx user unit not active"
+# wait for BOTH user units (nginx has ExecStartPre + Restart=on-failure, so it can lag lhpc-web,
+# especially on the heavier Desktop cold boot)
+for _ in $(seq 1 45); do as_op systemctl --user is-active lhpc-web.service   >/dev/null 2>&1 && break; sleep 2; done
+for _ in $(seq 1 45); do as_op systemctl --user is-active lhpc-nginx.service >/dev/null 2>&1 && break; sleep 2; done
+as_op systemctl --user is-active lhpc-web.service >/dev/null 2>&1 \
+  || { as_op systemctl --user status lhpc-web.service --no-pager 2>&1 | tail -20; fail "lhpc-web user unit not active"; }
+as_op systemctl --user is-active lhpc-nginx.service >/dev/null 2>&1 \
+  || { as_op systemctl --user status lhpc-nginx.service --no-pager 2>&1 | tail -20; fail "lhpc-nginx user unit not active"; }
 ok "web + nginx user units active"
 
 # healthz + web GUI reachable

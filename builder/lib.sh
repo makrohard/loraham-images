@@ -15,6 +15,18 @@ group_end()   { printf '::endgroup::\n' >&2 2>/dev/null || true; }
 
 require_root() { [ "$(id -u)" -eq 0 ] || die "must run as root"; }
 
+# e2fsck, fail-closed. Exit 0=clean, 1=errors corrected, 2=corrected (reboot advised) -> OK.
+# >=4 means uncorrected/operational error: attempt one non-interactive full repair, else die.
+fsck_checked() {
+  local dev="$1" rc=0
+  e2fsck -pf "$dev" || rc=$?
+  case "$rc" in
+    0|1|2) return 0 ;;
+    *) rc=0; e2fsck -y "$dev" || rc=$?
+       case "$rc" in 0|1|2) return 0 ;; *) die "e2fsck could not correct $dev (exit $rc)" ;; esac ;;
+  esac
+}
+
 # ---- disk budget -----------------------------------------------------------
 # Print free bytes on the filesystem holding $1 (default: cwd).
 free_bytes() { df -PB1 "${1:-.}" | awk 'NR==2{print $4}'; }

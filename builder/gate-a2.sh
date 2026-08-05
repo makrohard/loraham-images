@@ -39,7 +39,7 @@ trap 'set +e; umount_copy; rm -f "$COPY"' EXIT
 log "growing throwaway copy (+2G) to simulate first-boot root expansion"
 truncate -s +2G "$COPY"
 attach_loop "$COPY"; parted -s "$COPY" resizepart 2 100%; detach_image
-attach_loop "$COPY"; e2fsck -pf "${LOOPDEV}p2" || e2fsck -y "${LOOPDEV}p2" || true; resize2fs "${LOOPDEV}p2"; detach_image
+attach_loop "$COPY"; fsck_checked "${LOOPDEV}p2"; resize2fs "${LOOPDEV}p2"; detach_image
 
 mount_copy
 

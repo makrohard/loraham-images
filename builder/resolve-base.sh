@@ -17,26 +17,24 @@ _here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_HOST="https://downloads.raspberrypi.com"
 
 resolve_stream() {
-  local stream="$1" idx dir img sha
+  local stream="$1" idx dirs dir dirlist img="" sha url
   idx="$(curl -fsSL --max-time 60 "$BASE_HOST/$stream/images/")" \
     || die "cannot list $stream image directory"
-  # newest dated dir first
-  dir="$(printf '%s\n' "$idx" \
-        | grep -oE "${stream}-[0-9]{4}-[0-9]{2}-[0-9]{2}" | sort -u | sort -r | head -1)"
-  [ -n "$dir" ] || die "no dated build directory found for $stream"
-  local dirlist
-  dirlist="$(curl -fsSL --max-time 60 "$BASE_HOST/$stream/images/$dir/")" \
-    || die "cannot list $stream/$dir"
-  img="$(printf '%s\n' "$dirlist" \
-        | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}-raspios-trixie-arm64[a-z-]*\.img\.xz' \
-        | sort -u | head -1)"
-  [ -n "$img" ] || die "no trixie arm64 .img.xz in $stream/$dir (codename crossed?)"
-  local url="$BASE_HOST/$stream/images/$dir/$img"
+  dirs="$(printf '%s\n' "$idx" | grep -oE "${stream}-[0-9]{4}-[0-9]{2}-[0-9]{2}" | sort -u | sort -r)"
+  [ -n "$dirs" ] || die "no dated build directory found for $stream"
+  # newest dir first, but take the newest one that actually holds a TRIXIE arm64 image — so a
+  # future dir carrying a later Debian codename is skipped rather than failing the resolve.
+  for dir in $dirs; do
+    dirlist="$(curl -fsSL --max-time 60 "$BASE_HOST/$stream/images/$dir/" 2>/dev/null || true)"
+    img="$(printf '%s\n' "$dirlist" \
+          | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}-raspios-trixie-arm64[a-z-]*\.img\.xz' \
+          | sort -u | head -1)"
+    [ -n "$img" ] && break
+  done
+  [ -n "$img" ] || die "no trixie arm64 .img.xz in any dated dir of $stream (codename moved past trixie?)"
+  url="$BASE_HOST/$stream/images/$dir/$img"
   sha="$(curl -fsSL --max-time 60 "$url.sha256" | awk '{print $1}')" \
     || die "cannot fetch sha256 for $img"
-  case "$sha" in
-    [0-9a-f]) : ;; # placeholder never matches; real check below
-  esac
   [ "${#sha}" -eq 64 ] || die "bad sha256 for $img: '$sha'"
   printf '%s %s\n' "$url" "$sha"
 }

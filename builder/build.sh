@@ -13,6 +13,7 @@ _repo="$(cd "$_here/.." && pwd)"
 . "$_here/lib.sh"
 require_root
 assert_host_arm64
+trap cleanup_image EXIT INT TERM   # tear down any loop/mount left by a failed phase
 
 VARIANT="${1:?usage: build.sh <lite|desktop>}"
 WORK="${WORK:-$_repo/work}"; OUT="${OUT:-$_repo/out}"
@@ -55,7 +56,7 @@ attach_loop "$IMG"
 parted -s "$IMG" resizepart 2 100% || parted -s "$IMG" unit '%' resizepart 2 100
 detach_image
 attach_loop "$IMG"
-e2fsck -pf "${LOOPDEV}p2" || e2fsck -y "${LOOPDEV}p2" || true
+fsck_checked "${LOOPDEV}p2"
 resize2fs "${LOOPDEV}p2"
 # verify geometry + free space
 gsz="$(blockdev --getsize64 "${LOOPDEV}p2")"

@@ -40,7 +40,10 @@ A checklist for the repo owner. What CI enforces vs. what is manual, plus the ho
 ## Dependencies to keep an eye on
 - `INVOCATION_ID`-unset operator path (delta-7 focused test): revalidate against new LHPC SHAs.
 - The base's first-user mechanism (userconf/custom.toml) — inspected per base, not hardcoded.
-- Monthly `schedule:` publishes a dated release only on change; GitHub disables idle schedules
+- Monthly `schedule:` **builds both unconditionally** (so a package-only Debian/RPi security update is
+  picked up even with no new base or LHPC commit) and publishes a dated `img-YYYY.MM.DD-HHMM` release
+  **only when the full provenance signature** (base sha + package-manifest sha + LHPC commit + component
+  report sha) differs from the latest release — else finishes green with no duplicate. GitHub disables idle schedules
   (~60 days) — dispatch manually to re-enable.
 
 ## Upstream asks (not implemented here)

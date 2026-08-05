@@ -71,8 +71,14 @@ ok "daemon start refused (no hardware)"
 as_op "$LHPC" status 2>&1 | grep -qiE '\brunning\b.*daemon|daemon.*\(running\)' && fail "a stack is running"
 ok "no stack running"
 
-# callsign unset/default
-as_op "$LHPC" status --versions >/dev/null 2>&1 || true
+# sole operator user — the base 'pi' placeholder must have been removed
+others="$(getent passwd | awk -F: -v op="$OP" '$3>=1000 && $3<65534 && $1!=op {print $1"("$3")"}' | tr '\n' ' ')"
+[ -z "$others" ] || fail "unexpected normal user(s) besides $OP: $others"
+ok "sole operator user: $OP"
+
+# callsign unset/default (empty or N0CALL) — read from the operator config
+cs="$(grep -iE '^[[:space:]]*callsign[[:space:]]*=' "$RUNTIME/config/local.toml" 2>/dev/null | head -1 | sed -E 's/.*=[[:space:]]*//; s/["[:space:]]//g')"
+if [ -z "$cs" ] || [ "$cs" = "N0CALL" ]; then ok "callsign unset/default (${cs:-empty})"; else fail "callsign is set to '$cs' (expected unset/N0CALL)"; fi
 
 # fresh per-device PKI present
 RUNTIME="/home/$OP/loraham-pi-control"

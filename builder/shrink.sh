@@ -12,12 +12,13 @@ _here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 IMG="${1:?raw image}"
 MARGIN_MB=64          # documented safety margin added past the minimal filesystem
+trap cleanup_image EXIT INT TERM
 
 group_begin "shrink: minimise partition 2 + truncate image"
 attach_loop "$IMG"
 P2="${LOOPDEV}p2"
 
-e2fsck -pf "$P2" || e2fsck -y "$P2" || true
+fsck_checked "$P2"
 
 # zerofree the (unmounted) fs to make the tail compress well, then minimise.
 command -v zerofree >/dev/null 2>&1 && zerofree "$P2" || warn "zerofree unavailable — skipping"
@@ -50,7 +51,7 @@ printf '%s,%s\n' "$p2_start" "$new_size_sectors" | sfdisk --no-reread -f -N 2 "$
 
 # re-attach, re-read, fsck again
 attach_loop "$IMG"
-e2fsck -pf "${LOOPDEV}p2" || true
+fsck_checked "${LOOPDEV}p2"
 # revalidate fs type
 blkid_type="$(blkid -o value -s TYPE "${LOOPDEV}p2" || true)"
 [ "$blkid_type" = "ext4" ] || die "p2 fs type is '$blkid_type', expected ext4 after shrink"

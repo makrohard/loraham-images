@@ -27,54 +27,36 @@ jobs:
   # Resolve the build matrix and, for schedule/refresh, decide if anything CHANGED
   # (latest base sha per variant + resolved LHPC main) vs the latest release — cheaply,
   # WITHOUT a full build. build/publish are skipped when nothing changed.
-  precheck:
+  lint:
     runs-on: ubuntu-24.04-arm
-    outputs:
-      changed: ${{ steps.c.outputs.changed }}
-      matrix: ${{ steps.c.outputs.matrix }}
-    env:
-      GH_TOKEN: ${{ github.token }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - id: c
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends shellcheck python3
+      - run: bash tests/static.sh
+
+  precheck:
+    runs-on: ubuntu-24.04-arm
+    permissions: {}
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - id: m
         run: |
-          set -e
           if [ "${{ github.event_name }}" = workflow_dispatch ] && [ "${{ github.event.inputs.refresh }}" != true ]; then
             v="${{ github.event.inputs.variant }}"
           else
-            v="both"
+            v="both"   # tags, schedule, and refresh dispatch all build both
           fi
           case "$v" in
             lite)    echo 'matrix={"variant":["lite"]}' >> "$GITHUB_OUTPUT" ;;
             desktop) echo 'matrix={"variant":["desktop"]}' >> "$GITHUB_OUTPUT" ;;
             *)       echo 'matrix={"variant":["lite","desktop"]}' >> "$GITHUB_OUTPUT" ;;
           esac
-          if [ "${{ github.event_name }}" = schedule ] || [ "${{ github.event.inputs.refresh }}" = true ]; then
-            sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends curl ca-certificates git python3 >/dev/null
-            lb=$(bash builder/resolve-base.sh raspios_lite_arm64 | awk '{print $2}')
-            db=$(bash builder/resolve-base.sh raspios_arm64 | awk '{print $2}')
-            lc=$(bash builder/resolve-lhpc.sh resolve)
-            mkdir -p sig
-            printf '{"base_sha256":"%s","lhpc_commit":"%s"}\n' "$lb" "$lc" > sig/provenance-lite.json
-            printf '{"base_sha256":"%s","lhpc_commit":"%s"}\n' "$db" "$lc" > sig/provenance-desktop.json
-            NEW=$(python3 builder/signature.py sig); echo "new signature: $NEW"
-            OLD=""; last=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
-            if [ -n "$last" ]; then gh release download "$last" -p signature.txt -D prev 2>/dev/null || true; OLD=$(cat prev/signature.txt 2>/dev/null || echo ''); fi
-            echo "latest release ($last) signature: $OLD"
-            if [ "$NEW" = "$OLD" ]; then
-              echo "changed=false" >> "$GITHUB_OUTPUT"
-              echo "NO CHANGE (base/LHPC identical to $last) — skipping build+publish (no duplicate)."
-            else
-              echo "changed=true" >> "$GITHUB_OUTPUT"
-              echo "CHANGE detected — will build + publish a dated release."
-            fi
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
 
   build:
-    needs: precheck
-    if: ${{ needs.precheck.outputs.changed == 'true' }}
+    needs: [lint, precheck]
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 300
     permissions:
@@ -140,7 +122,11 @@ jobs:
             sz=$(stat -c%s "$img"); [ "$sz" -le 2147483648 ] || { echo "::error::$v $sz > 2GiB"; exit 1; }
             cp "dl/image-$v/loraham-lhpc-$v.img.xz" "dl/image-$v/loraham-lhpc-$v.img.xz.sha256" rel/ 2>/dev/null || true
             cp "dl/image-$v/lhpc-image.json" "rel/provenance-$v.json" 2>/dev/null || true
+            cp "dl/logs-$v/lhpc-packages.log" "rel/packages-$v.txt" 2>/dev/null || true
+            cp "dl/logs-$v/lhpc-versions.log" "rel/components-$v.txt" 2>/dev/null || true
           done
+          n=$(ls rel/*.img.xz 2>/dev/null | wc -l)
+          [ "$n" -ge 1 ] || { echo "::error::no valid image assets - refusing to publish an empty release"; exit 1; }
           ( cd rel && sha256sum ./*.img.xz > SHA256SUMS || true )
           python3 builder/signature.py rel > rel/signature.txt || true
           ls -l rel
@@ -149,10 +135,12 @@ jobs:
           files: rel/*
           fail_on_unmatched_files: false
 
-  # monthly/manual refresh: only runs when precheck found a change; publishes a DATED release
+  # monthly/manual refresh: build ran unconditionally; publish a DATED release ONLY if the FULL
+  # provenance signature (base + packages + LHPC + component composition) differs from the latest
+  # release — else finish green with no duplicate.
   publish-refresh:
-    needs: [precheck, build]
-    if: ${{ always() && needs.precheck.outputs.changed == 'true' && (github.event_name == 'schedule' || github.event.inputs.refresh == 'true') }}
+    needs: build
+    if: ${{ always() && (github.event_name == 'schedule' || github.event.inputs.refresh == 'true') }}
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
@@ -162,7 +150,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
         with: { path: dl }
-      - name: Assemble + publish dated release
+      - name: Assemble, compare full signature, publish dated release on change
         run: |
           set -e; mkdir -p rel
           for v in lite desktop; do
@@ -171,9 +159,21 @@ jobs:
             sz=$(stat -c%s "$img"); [ "$sz" -le 2147483648 ] || { echo "::error::$v $sz > 2GiB"; exit 1; }
             cp "dl/image-$v/loraham-lhpc-$v.img.xz" "dl/image-$v/loraham-lhpc-$v.img.xz.sha256" rel/ 2>/dev/null || true
             cp "dl/image-$v/lhpc-image.json" "rel/provenance-$v.json" 2>/dev/null || true
+            cp "dl/logs-$v/lhpc-packages.log" "rel/packages-$v.txt" 2>/dev/null || true
+            cp "dl/logs-$v/lhpc-versions.log" "rel/components-$v.txt" 2>/dev/null || true
           done
+          n=$(ls rel/*.img.xz 2>/dev/null | wc -l)
+          [ "$n" -ge 1 ] || { echo "::error::no valid image assets - refusing to publish a dated release"; exit 1; }
           ( cd rel && sha256sum ./*.img.xz > SHA256SUMS || true )
           SIG="$(python3 builder/signature.py rel)"; echo "$SIG" > rel/signature.txt
+          echo "new full signature: $SIG"
+          OLD=""; last=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
+          if [ -n "$last" ]; then gh release download "$last" -p signature.txt -D prev 2>/dev/null || true; OLD=$(cat prev/signature.txt 2>/dev/null || echo ''); fi
+          echo "latest release ($last) signature: $OLD"
+          if [ "$SIG" = "$OLD" ]; then
+            echo "NO CHANGE vs $last (base/packages/LHPC/components identical) — finishing green, no duplicate release."
+            exit 0
+          fi
           TAG="img-$(python3 -c 'import datetime; print(datetime.datetime.utcnow().strftime("%Y.%m.%d-%H%M"))')"
-          echo "publishing dated release $TAG (signature $SIG)"
+          echo "CHANGE detected — publishing dated release $TAG (signature $SIG)"
           gh release create "$TAG" rel/* --title "$TAG" --notes "Refreshed images (monthly). signature: $SIG"

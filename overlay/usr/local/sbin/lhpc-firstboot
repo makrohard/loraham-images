@@ -112,7 +112,14 @@ step_hostkeys(){
   systemctl disable --now ssh.service 2>/dev/null || true
 }
 
-step_regdomain(){ iw reg set "$COUNTRY" 2>/dev/null || true; }
+step_regdomain(){
+  # Set the regulatory domain PERSISTENTLY (raspi-config writes it so it survives reboots — the
+  # AP will not start reliably without a set country). `iw reg set` alone is runtime-only.
+  if command -v raspi-config >/dev/null 2>&1; then
+    raspi-config nonint do_wifi_country "$COUNTRY" 2>/dev/null || say "raspi-config do_wifi_country returned nonzero (continuing)"
+  fi
+  iw reg set "$COUNTRY" 2>/dev/null || true
+}
 
 step_ap(){
   # create/refresh the AP profile (well-formed regardless of a radio being present)
@@ -206,25 +213,32 @@ step_swap(){
   # In CI the image is the SHRUNK artifact (no real root-expansion, no free space); the swap
   # transaction mechanics are proven separately by the gate fixture. Real swap is hardware Gate B.
   if [ "$CI" = "1" ]; then say "CI mode: skipping real swapfile (proven by gate fixture; Gate B on hardware)"; return 0; fi
+  local mb="${SWAP_MB:-768}" sf="${SWAP_FILE:-/var/swap.lhpc}"
+  # LHPC low-memory policy: provision swap ONLY when RAM < 600 MB and there is no sufficient
+  # NON-zram disk-backed swap already. Larger boxes (Pi 4/5, Desktop) need none.
+  local mem_mb disk_swap_mb
+  mem_mb=$(( $(awk '/^MemTotal:/{print $2}' /proc/meminfo) / 1024 ))
+  disk_swap_mb=$(awk 'NR>1 && $1 !~ /zram/ {s+=$3} END{printf "%d", s/1024}' /proc/swaps 2>/dev/null)
+  disk_swap_mb=${disk_swap_mb:-0}
+  if [ "$mem_mb" -ge 600 ] || [ "$disk_swap_mb" -ge "$mb" ]; then
+    say "swap not required (RAM ${mem_mb}MB, disk swap ${disk_swap_mb}MB) — skipping"
+    return 0
+  fi
   # gated on the real root-expansion having finished
-  local root_avail_kb; root_avail_kb="$(df -Pk / | awk 'NR==2{print $4}')"
-  local need_kb=$(( (${SWAP_MB:-768} + 256) * 1024 ))
-  local part_sz fs_sz
+  local part_sz fs_sz root_avail_kb
   part_sz="$(blockdev --getsize64 "$(findmnt -no SOURCE /)" 2>/dev/null || echo 0)"
   fs_sz="$(df -PB1 / | awk 'NR==2{print $2}')"
-  # expansion incomplete if the fs is still ~release-sized (< 90% of the partition)
   if [ "$part_sz" -gt 0 ] && [ "$fs_sz" -lt $(( part_sz * 9 / 10 )) ]; then
     fail "root filesystem not expanded yet (fs=$fs_sz part=$part_sz) — staying armed, not filling release-sized fs"
   fi
-  [ "$root_avail_kb" -ge "$need_kb" ] || fail "insufficient free space for swap (have ${root_avail_kb}k need ${need_kb}k)"
-  local sf="${SWAP_FILE:-/var/swap.lhpc}"
+  root_avail_kb="$(df -Pk / | awk 'NR==2{print $4}')"
+  [ "$root_avail_kb" -ge $(( (mb + 256) * 1024 )) ] || fail "insufficient free space for swap (have ${root_avail_kb}k)"
   if ! grep -q "^$sf " /proc/swaps 2>/dev/null; then
-    if [ ! -f "$sf" ]; then
-      fallocate -l "${SWAP_MB:-768}M" "$sf" 2>/dev/null || dd if=/dev/zero of="$sf" bs=1M count="${SWAP_MB:-768}" status=none
-    fi
+    [ -f "$sf" ] || fallocate -l "${mb}M" "$sf" 2>/dev/null || dd if=/dev/zero of="$sf" bs=1M count="$mb" status=none
     [ -f "$sf" ] && [ ! -L "$sf" ] || fail "swapfile is not a regular file"
     chmod 0600 "$sf"; mkswap "$sf" >/dev/null
-    grep -q "^$sf " /etc/fstab || printf '%s none swap sw,pri=10 0 0\n' "$sf" >> /etc/fstab
+    # exactly one canonical fstab entry, written atomically
+    awk -v f="$sf" '$1!=f' /etc/fstab > /etc/fstab.lhpc.tmp && printf '%s none swap sw,pri=10 0 0\n' "$sf" >> /etc/fstab.lhpc.tmp && mv /etc/fstab.lhpc.tmp /etc/fstab
     swapon "$sf" || fail "swapon failed"
   fi
   grep -q "^$sf " /proc/swaps || fail "swap not active in /proc/swaps"

@@ -54,8 +54,9 @@ say "apt-get update"
 apt-get update -y
 say "apt-get full-upgrade (kernel held; update-initramfs neutralised)"
 apt-get -y -o Dpkg::Options::=--force-confold full-upgrade
-# finish configuring anything the earlier state left pending
-dpkg --configure -a || true
+# finish configuring anything the earlier state left pending (fail-closed: the update-initramfs
+# stub makes any initramfs trigger a no-op, so this must succeed).
+dpkg --configure -a
 
 # restore the real update-initramfs binary WITHOUT regenerating (base initrd stays)
 if [ -e /usr/sbin/update-initramfs.distrib ]; then
@@ -133,8 +134,13 @@ dry_rc=0
 bash "$BOOT" --dry-run > /var/log/bootstrap-dryrun.log 2>&1 || dry_rc=$?
 if [ "$dry_rc" -ne 0 ]; then
   cat /var/log/bootstrap-dryrun.log
-  [ "$VARIANT" = "lite" ] && die "bootstrap-deps --dry-run failed (rc=$dry_rc) on Lite"
-  say "dry-run rc=$dry_rc on non-Lite variant (GUI expected) — continuing"
+  if [ "$VARIANT" = "lite" ]; then
+    die "bootstrap-deps --dry-run failed (rc=$dry_rc) on Lite"
+  elif [ "$dry_rc" -eq 6 ]; then
+    say "dry-run rc=6 on Desktop (graphical packages expected with --with-gui) — continuing"
+  else
+    die "bootstrap-deps --dry-run failed (rc=$dry_rc) on Desktop — only exit 6 (GUI) is tolerated"
+  fi
 fi
 
 # ---- 6. real bootstrap-deps ------------------------------------------------
@@ -164,9 +170,11 @@ LHPC_BIN="/home/$OPERATOR_USER/.local/bin/lhpc"
 
 # ---- 7b. Lite GUI closure assertion ----------------------------------------
 if [ "$VARIANT" = "lite" ]; then
-  n="$(dpkg -l | grep -cE 'libgtk-3-0|libwayland-client0|x11-common' || true)"
-  say "Lite GUI package count = $n"
-  [ "$n" -eq 0 ] || die "GUI packages present on Lite (count=$n) — GUI leaked into the closure"
+  # Broader GUI/display/toolkit denylist (the --dry-run exit-6 gate above is the PRIMARY guard;
+  # this catches anything that leaked despite it). Any present on a headless Lite = GUI leak.
+  leaked="$(dpkg -l | awk '$1=="ii"{print $2}' | grep -E '^(libgtk-3-0|libgtk-4-1|libwayland-client0|libwayland-server0|x11-common|xserver-xorg-core|libqt5gui5|libqt6gui6|python3-tk|lightdm)(:|$)' | tr '\n' ' ' || true)"
+  say "Lite GUI leak check: ${leaked:-none}"
+  [ -z "$leaked" ] || die "GUI packages present on Lite: $leaked — GUI leaked into the closure"
 fi
 
 # ---- 8. auto-install (no --source/--tests/--tx) ----------------------------
@@ -192,9 +200,31 @@ as_op "$LHPC_BIN" status            > /var/log/lhpc-status.log 2>&1 || true
 as_op "$LHPC_BIN" status --versions > /var/log/lhpc-versions.log 2>&1 || true
 as_op "$LHPC_BIN" doctor            > /var/log/lhpc-doctor.log 2>&1 || true
 
-# ---- 10. provenance --------------------------------------------------------
+# ---- 10. remove build-time holds; fail closed on a broken dpkg state -------
+# The kernel/boot holds were only to survive in-container initramfs generation. Remove them so
+# the released device can update those packages (the operator's `apt full-upgrade` must not be
+# silently blocked). We keep the base kernel VERSION (we didn't upgrade it here), but unblock it.
+if [ -n "${hold_pkgs:-}" ]; then
+  # shellcheck disable=SC2086
+  apt-mark unhold $hold_pkgs >/dev/null 2>&1 || true
+fi
+still="$(apt-mark showhold 2>/dev/null | tr '\n' ' ')"
+for p in ${hold_pkgs:-}; do
+  case " $still " in *" $p "*) die "build-time hold not removed: $p" ;; esac
+done
+dpkg --configure -a
+audit="$(dpkg --audit 2>&1 || true)"; [ -z "$audit" ] || die "dpkg --audit reports unresolved package state: $audit"
+say "no holds remain; dpkg audit clean"
+
+# ---- 11. provenance --------------------------------------------------------
 mkdir -p /etc /var/lib/lhpc
 LHPC_VER="$(as_op "$LHPC_BIN" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo unknown)"
+PKG_MANIFEST=/var/lib/lhpc/packages.manifest
+dpkg-query -W -f='${Package} ${Version}\n' 2>/dev/null | sort > "$PKG_MANIFEST" || true
+PKG_COUNT="$(wc -l < "$PKG_MANIFEST" 2>/dev/null || echo 0)"
+PKG_SHA="$(sha256sum "$PKG_MANIFEST" 2>/dev/null | awk '{print $1}')"
+COMP_SHA="$(sha256sum /var/log/lhpc-versions.log 2>/dev/null | awk '{print $1}')"
+BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 {
   printf '{\n'
   printf '  "variant": "%s",\n' "$VARIANT"
@@ -202,12 +232,17 @@ LHPC_VER="$(as_op "$LHPC_BIN" --version 2>/dev/null | head -1 | grep -oE '[0-9]+
   printf '  "lhpc_version": "%s",\n' "$LHPC_VER"
   printf '  "base_url": "%s",\n' "${BASE_URL:-}"
   printf '  "base_sha256": "%s",\n' "${BASE_SHA256:-}"
-  printf '  "workflow_run_id": "%s",\n' "${WORKFLOW_RUN_ID:-}"
-  printf '  "built_at_note": "timestamp stamped by the host after the workflow"\n'
+  printf '  "package_count": %s,\n' "${PKG_COUNT:-0}"
+  printf '  "package_manifest_sha256": "%s",\n' "${PKG_SHA:-}"
+  printf '  "component_report_sha256": "%s",\n' "${COMP_SHA:-}"
+  printf '  "built_at": "%s",\n' "$BUILT_AT"
+  printf '  "workflow_run_id": "%s"\n' "${WORKFLOW_RUN_ID:-}"
   printf '}\n'
 } > /etc/lhpc-image.json
-dpkg-query -W -f='${Package} ${Version}\n' > /var/lib/lhpc/packages.manifest 2>/dev/null || true
+# copy the full package manifest + component report where build.sh collects logs (so they reach
+# the workflow artifact / release, not only inside the image).
+cp "$PKG_MANIFEST" /var/log/lhpc-packages.log 2>/dev/null || true
 
-# ---- 11. done --------------------------------------------------------------
+# ---- 12. done --------------------------------------------------------------
 touch /var/lib/lhpc/.provisioned
-say "PROVISIONED OK (variant=$VARIANT lhpc=$INSTALLED_SHA)"
+say "PROVISIONED OK (variant=$VARIANT lhpc=$INSTALLED_SHA pkgs=$PKG_COUNT)"

@@ -53,19 +53,29 @@ CALL=N0CALL                   # your callsign, once you have one
 **Lite** — on your phone/laptop, join the Wi-Fi network **`lhpc-XXXX`** (password **`lorahampi`**),
 then open **`https://10.42.0.1:8443`** and accept the certificate warning.
 
-**Desktop** — it joins your network; browse to **`https://lhpc-XXXX.local:8443`** (or just use the
-screen).
+**Desktop** — it boots to a desktop; sign in as **`lhpc`** / **`lhpc`**, then open a browser **on the
+Pi** and go to **`https://127.0.0.1:8443`**. (The console is local-only until you choose to expose it.)
 
-Sign in: user **`lhpc`**, password **`lhpc`**. On Lite you can also `ssh lhpc@10.42.0.1`.
+On Lite you can also `ssh lhpc@10.42.0.1` (user **`lhpc`**, password **`lhpc`**).
 
 ## 5 · Do these first ⚠️
 
-The defaults are **public** — change them straight away, in the Web GUI:
+The defaults are **public** — change them straight away. Open a terminal: on **Lite** `ssh lhpc@10.42.0.1`
+(password `lhpc`); on **Desktop** use the **Terminal** app. Then:
 
-1. **Change the OS password.**
-2. **Change the Wi-Fi AP key** (Lite).
-3. **Set your callsign** — daemon settings *(or `lhpc config operator --callsign YOURCALL`)*.
-4. **Pick your radio hardware** — nothing can transmit until you do.
+1. **Change the OS password** — run `passwd` and follow the prompts.
+2. **Change the Wi-Fi AP key** *(Lite only)* —
+   ```bash
+   sudo nmcli connection modify lhpc-ap wifi-sec.psk 'your-new-key'   # 8+ characters
+   sudo nmcli connection up lhpc-ap                                   # rejoin the Wi-Fi with the new key
+   ```
+3. **Set your callsign** —
+   ```bash
+   lhpc config operator --callsign YOURCALL
+   ```
+   (or the operator/daemon settings in the Web GUI).
+4. **Pick your radio hardware** — `lhpc hardware` and choose your rig (or the **“Configure hardware”**
+   prompt on the Web GUI dashboard). **Nothing can transmit until you do this.**
 
 > Booting the image starts **no radio stack** and transmits **nothing** on its own. The console is
 > reachable only on the Lite access point (or locally on Desktop), not your LAN — keep it that way

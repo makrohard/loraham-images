@@ -90,7 +90,8 @@ The defaults are **public** — change them straight away. Open a terminal: on *
 
 - **No `lhpc-XXXX` Wi-Fi after ~2 min** — re-seat/re-flash the card; check power. The country must be
   set (it is, to `DE`, unless you changed it).
-- **Web GUI won't open** — you must be **on the AP** (Lite) or the same network (Desktop); accept the
+- **Web GUI won't open** — on **Lite** you must be joined to the AP and use `https://10.42.0.1:8443`; on
+  **Desktop** the console is local-only, so open `https://127.0.0.1:8443` **on the Pi itself**. Accept the
   self-signed certificate warning.
 - **Moved the box onto your home Wi-Fi?** The AP address `10.42.0.1` (and AP-only SSH) go away — reach
   it on the new network instead. Don't open a wildcard SSH listener (it re-exposes the default password).

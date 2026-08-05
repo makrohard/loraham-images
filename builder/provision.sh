@@ -244,6 +244,7 @@ BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf '  "package_count": %s,\n' "${PKG_COUNT:-0}"
   printf '  "package_manifest_sha256": "%s",\n' "${PKG_SHA:-}"
   printf '  "component_report_sha256": "%s",\n' "${COMP_SHA:-}"
+  printf '  "image_build_commit": "%s",\n' "${IMAGE_BUILD_COMMIT:-}"
   printf '  "built_at": "%s",\n' "$BUILT_AT"
   printf '  "workflow_run_id": "%s"\n' "${WORKFLOW_RUN_ID:-}"
   printf '}\n'

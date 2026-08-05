@@ -47,26 +47,37 @@ cfg_reject(){
 }
 parse_bootcfg(){
   [ -f "$BOOTCFG" ] || return 0
-  local line k v seen=""
+  local line k v seen="" b
   while IFS= read -r line || [ -n "$line" ]; do
     line="${line%$'\r'}"; line="${line#"${line%%[![:space:]]*}"}"
     case "$line" in ''|'#'*) continue;; esac
-    case "$line" in *'='*) :;; *) say "ignoring malformed lhpc-config line"; continue;; esac
+    # A non-empty, non-comment line MUST be KEY=VALUE — reject anything else (fail-closed:
+    # a stray/malformed line usually means a mistyped setting the user expected to take effect).
+    case "$line" in *'='*) :;; *) cfg_reject "malformed line (expected KEY=VALUE): $line";; esac
     k="${line%%=*}"; v="${line#*=}"; k="${k%"${k##*[![:space:]]}"}"
     case "$v" in *" #"*) v="${v%% #*}" ;; esac          # strip an inline comment (space + #)
     v="${v%"${v##*[![:space:]]}"}"                        # rtrim
     case " $seen " in *" $k "*) cfg_reject "duplicate key: $k";; esac
     seen="$seen $k"
     case "$v" in *[![:print:]]*) cfg_reject "non-printable value for $k";; esac
-    # Only keys firstboot actually acts on are accepted; validate the load-bearing ones.
     case "$k" in
       WIFI_COUNTRY) case "$v" in [A-Za-z][A-Za-z]) CFG["$k"]="${v^^}";; *) cfg_reject "WIFI_COUNTRY must be two letters (e.g. DE, US, GB), got '$v'";; esac ;;
-      AP_PSK)       { [ "${#v}" -ge 8 ] && [ "${#v}" -le 63 ]; } && CFG["$k"]="$v" || cfg_reject "AP_PSK must be 8–63 characters" ;;
-      HOSTNAME|AP_SSID) { [ "${#v}" -ge 1 ] && [ "${#v}" -le 32 ]; } && CFG["$k"]="$v" || cfg_reject "$k must be 1–32 characters" ;;
+      AP_PSK)
+        if printf '%s' "$v" | LC_ALL=C grep -q '[^ -~]'; then cfg_reject "AP_PSK must be printable ASCII"; fi
+        { [ "${#v}" -ge 8 ] && [ "${#v}" -le 63 ]; } && CFG["$k"]="$v" || cfg_reject "AP_PSK must be 8–63 ASCII characters" ;;
+      AP_SSID)
+        b="$(printf '%s' "$v" | wc -c)"
+        { [ "$b" -ge 1 ] && [ "$b" -le 32 ]; } && CFG["$k"]="$v" || cfg_reject "AP_SSID must be 1–32 bytes" ;;
+      HOSTNAME)
+        { [ "${#v}" -ge 1 ] && [ "${#v}" -le 63 ]; } || cfg_reject "HOSTNAME must be 1–63 characters"
+        case "$v" in *[![:alnum:]-]*|-*|*-) cfg_reject "HOSTNAME may contain only letters, digits and hyphens (no leading/trailing hyphen)";; esac
+        CFG["$k"]="$v" ;;
       PASSWORD)     { [ -n "$v" ] && [ "${#v}" -le 128 ]; } && CFG["$k"]="$v" || cfg_reject "PASSWORD must be 1–128 characters" ;;
       CALL)         case "$v" in *[![:alnum:]/-]*) cfg_reject "CALL has invalid characters";; *) [ "${#v}" -le 16 ] && CFG["$k"]="$v" || cfg_reject "CALL too long";; esac ;;
       EXPOSE_SCOPE) case "$v" in ap|none) CFG["$k"]="$v";; *) cfg_reject "EXPOSE_SCOPE must be 'ap' or 'none'";; esac ;;
-      *) say "ignoring unsupported lhpc-config key: $k" ;;
+      # Any other key is a typo (e.g. PASSWROD) — REFUSE so the user isn't left on the public
+      # defaults believing they changed something.
+      *) cfg_reject "unknown key '$k' (typo?) — supported: HOSTNAME PASSWORD AP_SSID AP_PSK WIFI_COUNTRY EXPOSE_SCOPE CALL" ;;
     esac
   done < "$BOOTCFG"
 }
@@ -126,18 +137,21 @@ step_hostkeys(){
 }
 
 step_regdomain(){
-  # Set the regulatory domain PERSISTENTLY (raspi-config writes it so it survives reboots — the
-  # AP will not start reliably without a set country). `iw reg set` alone is runtime-only.
-  if command -v raspi-config >/dev/null 2>&1; then
-    raspi-config nonint do_wifi_country "$COUNTRY" 2>/dev/null || say "raspi-config do_wifi_country returned nonzero"
+  # CI has no wifi device: persistence + on-radio behaviour are hardware Gate B — best-effort only.
+  if [ "$CI" = "1" ]; then
+    { command -v raspi-config >/dev/null 2>&1 && raspi-config nonint do_wifi_country "$COUNTRY" 2>/dev/null; } || true
+    iw reg set "$COUNTRY" 2>/dev/null || true
+    say "CI: regdomain set to $COUNTRY (persistence + on-radio verification are Gate B)"
+    return 0
   fi
+  # Real hardware: the PERSISTENT set must SUCCEED (raspi-config is the RPi-supported mechanism that
+  # writes the country so it survives reboots). A failure means an invalid country or broken setup —
+  # leave the step unmarked so the next boot retries after the user corrects WIFI_COUNTRY.
+  command -v raspi-config >/dev/null 2>&1 || fail "raspi-config unavailable to persist WIFI_COUNTRY=$COUNTRY (staying armed)"
+  raspi-config nonint do_wifi_country "$COUNTRY" || fail "could not persist WIFI_COUNTRY=$COUNTRY — check the country code (staying armed)"
   iw reg set "$COUNTRY" 2>/dev/null || true
-  # In CI there is no wifi device to reflect the domain (on-radio check is Gate B). On real
-  # hardware, VERIFY the kernel took the country and FAIL (leaving the step unmarked so the next
-  # boot retries) if not — so a bad WIFI_COUNTRY doesn't get baked in permanently.
-  if [ "$CI" = "1" ]; then say "CI: regdomain set to $COUNTRY (on-radio verification is Gate B)"; return 0; fi
   local got; got="$(iw reg get 2>/dev/null | awk '/^country/{print $2}' | tr -d ':' | head -1)"
-  [ "$got" = "$COUNTRY" ] || fail "regulatory domain is '${got:-unset}', expected '$COUNTRY' — check WIFI_COUNTRY (staying armed)"
+  [ "$got" = "$COUNTRY" ] || fail "regulatory domain is '${got:-unset}' at runtime, expected '$COUNTRY' (staying armed)"
 }
 
 step_ap(){

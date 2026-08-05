@@ -47,4 +47,7 @@ if grep -nE '^[A-Z_]+=[^#]* #' README.md; then
 fi
 echo "  ok"
 
+echo "== real lhpc-config.txt parser test (valid / misspelled / invalid) =="
+bash tests/parser.sh | sed 's/^/  /'
+
 echo "ALL STATIC TESTS PASSED"

@@ -16,7 +16,8 @@ Usage: signature.py <dir>   -> prints a short hex signature, or exits non-zero w
 import sys, os, json, hashlib
 
 d = sys.argv[1] if len(sys.argv) > 1 else "."
-REQUIRED = ("base_sha256", "lhpc_commit", "package_manifest_sha256", "component_report_sha256")
+REQUIRED = ("base_sha256", "lhpc_commit", "package_manifest_sha256",
+            "component_report_sha256", "image_build_commit")
 parts = []
 for v in ("lite", "desktop"):
     if not os.path.exists(os.path.join(d, f"loraham-lhpc-{v}.img.xz")):
@@ -34,6 +35,7 @@ for v in ("lite", "desktop"):
     parts.append(
         f"{v}:base={j['base_sha256']}:lhpc={j['lhpc_commit']}"
         f":pkgs={j['package_manifest_sha256']}:comp={j['component_report_sha256']}"
+        f":build={j['image_build_commit']}"
     )
 if not parts:
     sys.exit("FATAL: no image + provenance pair found to sign")

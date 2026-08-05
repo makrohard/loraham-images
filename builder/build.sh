@@ -89,6 +89,7 @@ OPERATOR_USER=$OPERATOR_USER
 OPERATOR_PASSWORD=$OPERATOR_PASSWORD
 LHPC_RESOLVED_SHA=$LHPC_SHA
 WORKFLOW_RUN_ID=${WORKFLOW_RUN_ID:-}
+IMAGE_BUILD_COMMIT=${IMAGE_BUILD_COMMIT:-}
 BASE_URL=$BASE_URL
 BASE_SHA256=$BASE_SHA256
 CONSOLE_PORT=${CONSOLE_PORT:-8443}
@@ -96,6 +97,8 @@ EOF
 
 # boot-partition README + MOTD, rendered from the SINGLE source (no drift).
 render_doc(){
+  local src="$_repo/docs/first-steps.$VARIANT.src.md"
+  [ -f "$src" ] || src="$_repo/docs/first-steps.lite.src.md"
   sed -e "s#@AP_SSID@#${AP_SSID_BASE:-lhpc}-<device-suffix>#g" \
       -e "s#@AP_PSK@#${AP_PSK:-lorahampi}#g" \
       -e "s#@AP_ADDR@#${AP_ADDR:-10.42.0.1}#g" \
@@ -103,7 +106,7 @@ render_doc(){
       -e "s#@OPERATOR_USER@#${OPERATOR_USER}#g" \
       -e "s#@OPERATOR_PASSWORD@#${OPERATOR_PASSWORD}#g" \
       -e "s#@WIFI_COUNTRY@#${WIFI_COUNTRY:-DE}#g" \
-      "$_repo/docs/first-steps.src.md"
+      "$src"
 }
 render_doc > "$ROOT/boot/firmware/README.txt"
 render_doc > "$ROOT/etc/motd"

@@ -78,7 +78,8 @@ jobs:
       - name: Build ${{ matrix.variant }}
         env:
           WORKFLOW_RUN_ID: ${{ github.run_id }}
-        run: sudo -E env WORK="$PWD/work" OUT="$PWD/out" WORKFLOW_RUN_ID="$WORKFLOW_RUN_ID" bash builder/build.sh ${{ matrix.variant }}
+          IMAGE_BUILD_COMMIT: ${{ github.sha }}
+        run: sudo -E env WORK="$PWD/work" OUT="$PWD/out" WORKFLOW_RUN_ID="$WORKFLOW_RUN_ID" IMAGE_BUILD_COMMIT="$IMAGE_BUILD_COMMIT" bash builder/build.sh ${{ matrix.variant }}
       - name: Upload logs (always)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

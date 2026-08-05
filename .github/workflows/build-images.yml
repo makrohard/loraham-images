@@ -8,10 +8,14 @@ on:
         type: choice
         options: [lite, desktop, both]
         default: lite
+      refresh:
+        description: refresh mode (build both + publish a DATED release only if base/packages/LHPC changed)
+        type: boolean
+        default: false
   push:
     tags: ['v*']
   schedule:
-    - cron: '0 4 1 * *'   # monthly refresh (see docs/maintenance.md; GitHub disables idle schedules ~60d)
+    - cron: '0 4 1 * *'   # monthly refresh (GitHub disables idle schedules ~60d; dispatch to re-enable)
 
 permissions: {}
 
@@ -27,10 +31,11 @@ jobs:
     steps:
       - id: m
         run: |
-          case "${{ github.event_name }}" in
-            workflow_dispatch) v="${{ github.event.inputs.variant }}" ;;
-            *) v="both" ;;
-          esac
+          if [ "${{ github.event_name }}" = workflow_dispatch ] && [ "${{ github.event.inputs.refresh }}" != true ]; then
+            v="${{ github.event.inputs.variant }}"
+          else
+            v="both"   # tags, schedule, and refresh dispatch all build both
+          fi
           case "$v" in
             lite)    echo 'matrix={"variant":["lite"]}' >> "$GITHUB_OUTPUT" ;;
             desktop) echo 'matrix={"variant":["desktop"]}' >> "$GITHUB_OUTPUT" ;;
@@ -50,8 +55,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Assert native arm64 runner
-        run: |
-          test "$(uname -m)" = aarch64 || { echo "not aarch64 — refuse to emulate"; exit 1; }
+        run: test "$(uname -m)" = aarch64 || { echo "not aarch64 - refuse to emulate"; exit 1; }
 
       - name: Free disk + install build deps
         run: |
@@ -93,31 +97,77 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  publish:
+  # ----- assemble a release directory from the built artifacts (shared) -----
+  publish-tag:
     needs: build
-    # always() so a failed/oversized Desktop leg cannot block an independent Lite release
     if: ${{ always() && startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
-        with:
-          path: dl
-      - name: Assemble + verify under cap
+        with: { path: dl }
+      - name: Assemble + verify under cap + signature
         run: |
           set -e
           mkdir -p rel
           for v in lite desktop; do
             img="dl/image-$v/loraham-lhpc-$v.img.xz"
-            [ -f "$img" ] || { echo "no image for $v (skipped/failed) — independent publish"; continue; }
-            sz=$(stat -c%s "$img")
-            [ "$sz" -le 2147483648 ] || { echo "::error::$v asset $sz > 2GiB cap"; exit 1; }
-            cp "dl/image-$v/"* rel/ 2>/dev/null || true
+            [ -f "$img" ] || { echo "no image for $v (independent publish)"; continue; }
+            sz=$(stat -c%s "$img"); [ "$sz" -le 2147483648 ] || { echo "::error::$v $sz > 2GiB"; exit 1; }
+            cp "dl/image-$v/loraham-lhpc-$v.img.xz" "dl/image-$v/loraham-lhpc-$v.img.xz.sha256" rel/ 2>/dev/null || true
+            cp "dl/image-$v/lhpc-image.json" "rel/provenance-$v.json" 2>/dev/null || true
           done
           ( cd rel && sha256sum ./*.img.xz > SHA256SUMS || true )
+          python3 builder/signature.py rel > rel/signature.txt || true
           ls -l rel
       - uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda
         with:
           files: rel/*
           fail_on_unmatched_files: false
+
+  # ----- monthly / manual refresh: publish a DATED release only on change ---
+  publish-refresh:
+    needs: build
+    if: ${{ always() && (github.event_name == 'schedule' || github.event.inputs.refresh == 'true') }}
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with: { path: dl }
+      - name: Assemble, compare signature, publish dated release on change
+        run: |
+          set -e
+          mkdir -p rel
+          for v in lite desktop; do
+            img="dl/image-$v/loraham-lhpc-$v.img.xz"
+            [ -f "$img" ] || { echo "no image for $v"; continue; }
+            sz=$(stat -c%s "$img"); [ "$sz" -le 2147483648 ] || { echo "::error::$v $sz > 2GiB"; exit 1; }
+            cp "dl/image-$v/loraham-lhpc-$v.img.xz" "dl/image-$v/loraham-lhpc-$v.img.xz.sha256" rel/ 2>/dev/null || true
+            cp "dl/image-$v/lhpc-image.json" "rel/provenance-$v.json" 2>/dev/null || true
+          done
+          ( cd rel && sha256sum ./*.img.xz > SHA256SUMS || true )
+          # signature over {base sha per variant, lhpc commit} — NOT the image hash (non-reproducible)
+          NEW_SIG="$(python3 builder/signature.py rel)"
+          echo "$NEW_SIG" > rel/signature.txt
+          echo "new signature: $NEW_SIG"
+          OLD_SIG=""
+          last="$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)"
+          if [ -n "$last" ]; then
+            gh release download "$last" -p signature.txt -D prev 2>/dev/null || true
+            OLD_SIG="$(cat prev/signature.txt 2>/dev/null || echo '')"
+            echo "latest release $last signature: $OLD_SIG"
+          fi
+          if [ "$NEW_SIG" = "$OLD_SIG" ]; then
+            echo "No change (base/packages/LHPC identical to $last) - finishing green without a duplicate release."
+            exit 0
+          fi
+          TAG="img-$(python3 -c 'import datetime,os; print(datetime.datetime.utcnow().strftime("%Y.%m.%d-%H%M"))')"
+          echo "change detected - publishing dated release $TAG"
+          gh release create "$TAG" rel/* --title "$TAG" --notes "Refreshed images.
+          signature: $NEW_SIG"

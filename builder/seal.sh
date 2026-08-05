@@ -116,7 +116,10 @@ fi
 [ -x "$ROOT/usr/local/sbin/lhpc-growroot" ] || die "seal failed: /usr/local/sbin/lhpc-growroot missing or not executable"
 [ -L "$ROOT/etc/systemd/system/sysinit.target.wants/lhpc-growroot.service" ] \
   || die "seal failed: lhpc-growroot.service not armed (sysinit.target.wants) — rootfs would never expand"
-if ls "$ROOT"/usr/bin/growpart "$ROOT"/bin/growpart "$ROOT"/usr/sbin/growpart "$ROOT"/sbin/growpart >/dev/null 2>&1; then
+# "any of these paths exists" — NOT `ls a b c d` (that exits non-zero if ANY path is missing,
+# which false-failed when growpart is only at /usr/bin).
+if [ -e "$ROOT/usr/bin/growpart" ] || [ -e "$ROOT/bin/growpart" ] \
+   || [ -e "$ROOT/usr/sbin/growpart" ] || [ -e "$ROOT/sbin/growpart" ]; then
   log "assert OK: lhpc-growroot armed + growpart present (rootfs expansion owned + verified)"
 else
   die "seal failed: growpart not in image — lhpc-growroot cannot grow the partition"

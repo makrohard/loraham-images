@@ -104,7 +104,13 @@ step_hostname(){
   fi
 }
 step_account(){ printf '%s:%s\n' "$OP" "$OS_PW" | chpasswd; }
-step_hostkeys(){ ssh-keygen -A; systemctl disable ssh 2>/dev/null || true; systemctl stop ssh 2>/dev/null || true; }
+step_hostkeys(){
+  ssh-keygen -A
+  # Disable BOTH the service and the socket (Trixie socket-activates ssh; the socket keeps
+  # *:22 open regardless of ssh.service). Lite re-enables ssh.service AP-bound in step_sshd_ap.
+  systemctl disable --now ssh.socket 2>/dev/null || true
+  systemctl disable --now ssh.service 2>/dev/null || true
+}
 
 step_regdomain(){ iw reg set "$COUNTRY" 2>/dev/null || true; }
 

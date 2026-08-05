@@ -43,10 +43,11 @@ hold_pkgs="$(dpkg-query -W -f='${Package}\n' 2>/dev/null \
   | grep -E '^(linux-image|linux-headers|raspberrypi-kernel|raspberrypi-bootloader|raspi-firmware)' || true)"
 if [ -n "$hold_pkgs" ]; then
   # shellcheck disable=SC2086
-  apt-mark hold $hold_pkgs >/dev/null || true
+  apt-mark hold $hold_pkgs >/dev/null || die "apt-mark hold failed"
 fi
 if [ ! -e /usr/sbin/update-initramfs.distrib ]; then
-  dpkg-divert --add --rename --divert /usr/sbin/update-initramfs.distrib /usr/sbin/update-initramfs >/dev/null 2>&1 || true
+  dpkg-divert --add --rename --divert /usr/sbin/update-initramfs.distrib /usr/sbin/update-initramfs >/dev/null \
+    || die "dpkg-divert --add for update-initramfs failed"
   ln -sf /bin/true /usr/sbin/update-initramfs
 fi
 
@@ -58,11 +59,16 @@ apt-get -y -o Dpkg::Options::=--force-confold full-upgrade
 # stub makes any initramfs trigger a no-op, so this must succeed).
 dpkg --configure -a
 
-# restore the real update-initramfs binary WITHOUT regenerating (base initrd stays)
+# Restore the real update-initramfs WITHOUT regenerating (base initrd stays) — FAIL CLOSED: a
+# botched restore that shipped /bin/true as update-initramfs would silently break the device's
+# future kernel updates.
 if [ -e /usr/sbin/update-initramfs.distrib ]; then
   rm -f /usr/sbin/update-initramfs
-  dpkg-divert --remove --rename /usr/sbin/update-initramfs >/dev/null 2>&1 || true
+  dpkg-divert --remove --rename /usr/sbin/update-initramfs >/dev/null || die "dpkg-divert --remove failed"
 fi
+if dpkg-divert --list /usr/sbin/update-initramfs 2>/dev/null | grep -q .; then die "update-initramfs diversion not removed"; fi
+if [ -L /usr/sbin/update-initramfs ]; then die "update-initramfs is still the /bin/true stub"; fi
+[ -x /usr/sbin/update-initramfs ] || die "update-initramfs missing/not executable after restore"
 
 # ---- 2. base tools + AP DHCP/NAT dependency (blocker fix) -------------------
 # git/curl/ca-certificates are needed before bootstrap-deps installs them (we clone the
@@ -197,8 +203,10 @@ as_op "$LHPC_BIN" auto-install --status > /var/log/auto-install-status.log 2>&1 
 # ---- 9. record status / versions / doctor ----------------------------------
 say "recording status/versions/doctor"
 as_op "$LHPC_BIN" status            > /var/log/lhpc-status.log 2>&1 || true
-as_op "$LHPC_BIN" status --versions > /var/log/lhpc-versions.log 2>&1 || true
 as_op "$LHPC_BIN" doctor            > /var/log/lhpc-doctor.log 2>&1 || true
+# The component/version report is REQUIRED release evidence — fail closed if it can't be produced.
+as_op "$LHPC_BIN" status --versions > /var/log/lhpc-versions.log 2>&1 || die "lhpc status --versions failed"
+[ -s /var/log/lhpc-versions.log ] || die "component report (status --versions) is empty"
 
 # ---- 10. remove build-time holds; fail closed on a broken dpkg state -------
 # The kernel/boot holds were only to survive in-container initramfs generation. Remove them so
@@ -220,8 +228,9 @@ say "no holds remain; dpkg audit clean"
 mkdir -p /etc /var/lib/lhpc
 LHPC_VER="$(as_op "$LHPC_BIN" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo unknown)"
 PKG_MANIFEST=/var/lib/lhpc/packages.manifest
-dpkg-query -W -f='${Package} ${Version}\n' 2>/dev/null | sort > "$PKG_MANIFEST" || true
-PKG_COUNT="$(wc -l < "$PKG_MANIFEST" 2>/dev/null || echo 0)"
+dpkg-query -W -f='${Package} ${Version}\n' | sort > "$PKG_MANIFEST"
+[ -s "$PKG_MANIFEST" ] || die "package manifest is empty"
+PKG_COUNT="$(wc -l < "$PKG_MANIFEST")"
 PKG_SHA="$(sha256sum "$PKG_MANIFEST" 2>/dev/null | awk '{print $1}')"
 COMP_SHA="$(sha256sum /var/log/lhpc-versions.log 2>/dev/null | awk '{print $1}')"
 BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

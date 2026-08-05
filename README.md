@@ -36,16 +36,20 @@ sha256sum -c SHA256SUMS      # should say "OK" for your image
 
 <details><summary>Optional: pre-configure before the first boot</summary>
 
-After flashing, a small drive named **`bootfs`** appears. Open it and edit **`lhpc-config.txt`**
-(plain `KEY=VALUE`, one per line — anything you leave out uses the defaults):
+After flashing, a small drive named **`bootfs`** appears. Open it and edit **`lhpc-config.txt`** —
+plain `KEY=VALUE`, one per line, **no inline comments**; anything you leave out keeps the default:
 
 ```
 HOSTNAME=lhpc-shack
 PASSWORD=choose-a-password
-AP_PSK=choose-a-wifi-key      # at least 8 characters (Lite)
-WIFI_COUNTRY=DE               # set YOUR country if not Germany
-CALL=N0CALL                   # your callsign, once you have one
+AP_PSK=choose-a-wifi-key
+WIFI_COUNTRY=DE
+CALL=N0CALL
 ```
+
+`AP_PSK` must be 8–63 characters and `WIFI_COUNTRY` your two-letter code (e.g. `DE`, `US`, `GB`). An
+invalid file is rejected on first boot, with the reason written to `lhpc-config-error.txt` on this
+same drive.
 </details>
 
 ## 4 · Connect
@@ -53,8 +57,9 @@ CALL=N0CALL                   # your callsign, once you have one
 **Lite** — on your phone/laptop, join the Wi-Fi network **`lhpc-XXXX`** (password **`lorahampi`**),
 then open **`https://10.42.0.1:8443`** and accept the certificate warning.
 
-**Desktop** — it boots to a desktop; sign in as **`lhpc`** / **`lhpc`**, then open a browser **on the
-Pi** and go to **`https://127.0.0.1:8443`**. (The console is local-only until you choose to expose it.)
+**Desktop** — it boots to a desktop; sign in as **`lhpc`** / **`lhpc`**. Join your Wi-Fi from the
+desktop's network menu (or use Ethernet), then open a browser **on the Pi** and go to
+**`https://127.0.0.1:8443`**. (The console is local-only until you choose to expose it.)
 
 On Lite you can also `ssh lhpc@10.42.0.1` (user **`lhpc`**, password **`lhpc`**).
 
@@ -104,7 +109,9 @@ pick. LHPC refuses conflicting starts.
 
 - Update LHPC on the running box: `lhpc self-update` (or the one-click updater in the console).
 - OS packages: `sudo apt full-upgrade`.
-- Fresh images are rebuilt monthly (latest base + packages + LHPC). Update the box in place — you don't
+- Fresh images are rebuilt monthly on the latest official base image with current packages and LHPC —
+  the **kernel, bootloader and firmware track that base** (updated when the base is). Update the box in
+  place — you don't
   need to reflash. Maintainer notes: [`docs/maintenance.md`](docs/maintenance.md).
 </details>
 

@@ -13,6 +13,7 @@ MODE="$(cat /etc/lhpc-gate-mode 2>/dev/null || echo firstboot)"
 OP="${OPERATOR_USER:-lhpc}"; UID_OP="$(id -u "$OP" 2>/dev/null || echo 1000)"
 XRD="/run/user/$UID_OP"; PORT="${CONSOLE_PORT:-8443}"
 LHPC="/home/$OP/.local/bin/lhpc"; [ -x "$LHPC" ] || LHPC="$(command -v lhpc || echo lhpc)"
+RUNTIME="/home/$OP/loraham-pi-control"   # assigned HERE, before any use (was used-before-assign)
 as_op(){ runuser -u "$OP" -- env -u INVOCATION_ID HOME="/home/$OP" USER="$OP" LOGNAME="$OP" \
    XDG_RUNTIME_DIR="$XRD" DBUS_SESSION_BUS_ADDRESS="unix:path=$XRD/bus" \
    PATH="/home/$OP/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" "$@"; }
@@ -81,12 +82,13 @@ others="$(getent passwd | awk -F: -v op="$OP" '$3>=1000 && $3<65534 && $1!=op {p
 [ -z "$others" ] || fail "unexpected normal user(s) besides $OP: $others"
 ok "sole operator user: $OP"
 
-# callsign unset/default (empty or N0CALL) — read from the operator config
+# callsign unset/default (empty or N0CALL) — read from the operator config. A missing local.toml
+# means no operator callsign was ever set = default (pass); a missing RUNTIME dir is a real fault.
+[ -d "$RUNTIME" ] || fail "runtime root $RUNTIME not found"
 cs="$(grep -iE '^[[:space:]]*callsign[[:space:]]*=' "$RUNTIME/config/local.toml" 2>/dev/null | head -1 | sed -E 's/.*=[[:space:]]*//; s/["[:space:]]//g')"
 if [ -z "$cs" ] || [ "$cs" = "N0CALL" ]; then ok "callsign unset/default (${cs:-empty})"; else fail "callsign is set to '$cs' (expected unset/N0CALL)"; fi
 
 # fresh per-device PKI present
-RUNTIME="/home/$OP/loraham-pi-control"
 [ -s "$RUNTIME/config/tls/server/server.crt" ] && [ -s "$RUNTIME/config/tls/server/server.key" ] \
   || fail "device PKI (server cert/key) missing after firstboot"
 ok "fresh device PKI present"

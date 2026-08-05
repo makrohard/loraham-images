@@ -28,6 +28,10 @@ A checklist for the repo owner. What CI enforces vs. what is manual, plus the ho
 ## Base image roll
 - `BASE_URL`/`BASE_SHA256` are RESOLVED each run (latest official build) and verified together; a
   base roll is the one change that can break provisioning silently — read the logs.
+- **Kernel/bootloader/firmware are PINNED to the base image**, not separately upgraded. They are held
+  during the in-container `apt full-upgrade` (nspawn cannot regenerate an initramfs), so they stay at
+  the base version and advance only when the base rolls. All other packages ARE brought current. The
+  build fails closed if any hold survives or `update-initramfs` isn't restored to the real binary.
 
 ## LHPC + binary channel (pin-of-pins)
 - Each run resolves `loraham-pi-control` `main` and records the installed SHA in

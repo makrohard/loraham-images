@@ -25,11 +25,15 @@ resolve_stream() {
   # newest dir first, but take the newest one that actually holds a TRIXIE arm64 image — so a
   # future dir carrying a later Debian codename is skipped rather than failing the resolve.
   for dir in $dirs; do
-    dirlist="$(curl -fsSL --max-time 60 "$BASE_HOST/$stream/images/$dir/" 2>/dev/null || true)"
+    # A load FAILURE (network/HTTP) must not silently skip to an older image — retry, then die.
+    if ! dirlist="$(curl -fsSL --retry 3 --retry-delay 2 --max-time 90 "$BASE_HOST/$stream/images/$dir/")"; then
+      die "failed to load $stream/$dir after retries (network/HTTP) — refusing to fall back to an older image"
+    fi
     img="$(printf '%s\n' "$dirlist" \
           | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}-raspios-trixie-arm64[a-z-]*\.img\.xz' \
           | sort -u | head -1)"
-    [ -n "$img" ] && break
+    [ -n "$img" ] && break   # this dir holds a Trixie image
+    # else: dir loaded OK but has no Trixie image (a newer codename) — try the next (older) dir
   done
   [ -n "$img" ] || die "no trixie arm64 .img.xz in any dated dir of $stream (codename moved past trixie?)"
   url="$BASE_HOST/$stream/images/$dir/$img"

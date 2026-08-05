@@ -40,4 +40,11 @@ grep -q 'runs-on: ubuntu-24.04-arm' .github/workflows/build-images.yml || { echo
 grep -qE 'uses: [a-z-]+/[a-z-]+@[0-9a-f]{40}' .github/workflows/build-images.yml || { echo "  actions not SHA-pinned"; exit 1; }
 echo "  ok"
 
+echo "== docs: README lhpc-config example is clean (no inline comments users would copy) =="
+# The boot-config parser strips ' #' comments, but the DOCUMENTED example must be copy-paste-safe.
+if grep -nE '^[A-Z_]+=[^#]* #' README.md; then
+  echo "  a KEY=VALUE line in README has an inline comment — users copy it verbatim into lhpc-config.txt"; exit 1
+fi
+echo "  ok"
+
 echo "ALL STATIC TESTS PASSED"

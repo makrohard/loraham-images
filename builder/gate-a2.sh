@@ -33,10 +33,10 @@ group_begin "Gate A2: prepare throwaway copy + inject CI-only harness"
 cp --reflink=auto "$SEALED" "$COPY"
 trap 'set +e; umount_copy; rm -f "$COPY"' EXIT
 
-# Simulate the Pi's first-boot root expansion. On real hardware firstboot's step_growroot does
-# this (growpart + resize2fs on a real block device); nspawn has no block device, so step_growroot
-# is CI-skipped (Gate B) and we grow the throwaway copy here instead, giving firstboot realistic
-# room for device PKI etc. (the ENOSPC failure this guards against was found on real hardware).
+# Simulate the Pi's first-boot root expansion. On real hardware lhpc-growroot.service does this
+# (growpart + resize2fs on a real block device); nspawn has no block device, so lhpc-growroot
+# CI-skips (Gate B) and we grow the throwaway copy here instead, giving firstboot realistic room
+# for device PKI etc. (the ENOSPC failure this guards against was found on real hardware).
 log "growing throwaway copy (+2G) to simulate first-boot root expansion"
 truncate -s +2G "$COPY"
 attach_loop "$COPY"; parted -s "$COPY" resizepart 2 100%; detach_image

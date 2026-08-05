@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# loraham-images — grow the root filesystem to fill the SD card. Runs as an EARLY oneshot
+# (lhpc-growroot.service, ordered before lhpc-firstboot AND before local-fs/swap), so nothing
+# writes to a full release-sized filesystem first. FAIL-CLOSED: after growing it PROVES the fs
+# fills its partition (and the partition fills the card); it never reports success on a skip or
+# an unverified grow. We own expansion because the base's rpi-resize.service is ConditionFirstBoot
+# and gets consumed by our nspawn build boot. Idempotent (resize2fs on a full fs is a no-op), so
+# it may run every boot; no completion marker is written.
+set -o errexit -o nounset -o pipefail
+
+log(){ printf 'lhpc-growroot: %s\n' "$*"; }
+die(){ printf 'lhpc-growroot: ERROR: %s\n' "$*" >&2; exit 1; }
+
+# CI (Gate A2, nspawn) has no real block device; a real resize is hardware Gate B. The marker can
+# never be in the sealed image (the gate injects /etc/lhpc/ci.env), so on hardware this is skipped.
+if [ -f /etc/lhpc/ci.env ]; then . /etc/lhpc/ci.env 2>/dev/null || true; fi
+if [ "${LHPC_FIRSTBOOT_CI:-0}" = "1" ]; then
+  log "CI mode: rootfs grow is hardware Gate B — skipping"; exit 0
+fi
+
+src="$(findmnt -no SOURCE / 2>/dev/null || true)"
+src="$(readlink -f "$src" 2>/dev/null || printf '%s' "$src")"
+case "$src" in
+  /dev/*) : ;;
+  *) log "root source '$src' is not a block device (container?) — nothing to grow"; exit 0 ;;
+esac
+
+part="${src#/dev/}"
+disk="$(lsblk -no PKNAME "$src" 2>/dev/null | head -1)"
+partnum="$(cat "/sys/class/block/$part/partition" 2>/dev/null || true)"
+{ [ -n "$disk" ] && [ -n "$partnum" ]; } || die "cannot resolve parent disk/partition of $src (disk='$disk' num='$partnum')"
+diskdev="/dev/$disk"
+[ -b "$diskdev" ] || die "parent disk $diskdev is not a block device"
+command -v growpart  >/dev/null 2>&1 || die "growpart is required but not installed"
+command -v resize2fs >/dev/null 2>&1 || die "resize2fs is required but not installed"
+
+# Grow the partition into any free space after it. growpart exits non-zero with NOCHANGE when the
+# partition already fills the disk — that is success. Any other failure is tolerated only if the
+# postcondition below proves the partition already fills the card.
+if growpart "$diskdev" "$partnum" >/tmp/lhpc-growpart.out 2>&1; then
+  log "growpart: $(tail -1 /tmp/lhpc-growpart.out)"
+  partprobe "$diskdev" 2>/dev/null || partx -u "$diskdev" 2>/dev/null || true
+elif grep -qi 'NOCHANGE' /tmp/lhpc-growpart.out; then
+  log "growpart: partition already fills the disk"
+else
+  log "growpart: WARNING — $(tail -1 /tmp/lhpc-growpart.out) (verifying size below)"
+fi
+rm -f /tmp/lhpc-growpart.out
+
+# Grow the filesystem to the partition size (online, idempotent).
+resize2fs "$src" 2>&1 | sed 's/^/  resize2fs: /' || die "resize2fs failed on $src"
+
+# ---- POSTCONDITIONS (fail-closed) ------------------------------------------
+part_bytes="$(blockdev --getsize64 "$src" 2>/dev/null || echo 0)"
+bcount="$(dumpe2fs -h "$src" 2>/dev/null | sed -n 's/^Block count: *//p' | head -1)"
+bsize="$(dumpe2fs -h "$src" 2>/dev/null | sed -n 's/^Block size: *//p' | head -1)"
+fs_bytes=$(( ${bcount:-0} * ${bsize:-0} ))
+{ [ "$part_bytes" -gt 0 ] && [ "$fs_bytes" -gt 0 ]; } || die "could not read partition/filesystem sizes (part=$part_bytes fs=$fs_bytes)"
+# (a) the filesystem must fill its partition — this is the exact invariant that failed live.
+if [ "$fs_bytes" -lt $(( part_bytes * 99 / 100 )) ]; then
+  die "filesystem ($fs_bytes B) does not fill its partition ($part_bytes B) — expansion incomplete"
+fi
+# (b) the partition must fill the card. Tolerate alignment slack; a large tail means the partition
+# was never grown (the fs is then trapped small). 256 MiB cleanly separates slack (~MiB) from a
+# real unused tail (GiB).
+disk_bytes="$(blockdev --getsize64 "$diskdev" 2>/dev/null || echo 0)"
+start_bytes=$(( $(cat "/sys/class/block/$part/start" 2>/dev/null || echo 0) * 512 ))
+tail_free=$(( disk_bytes - start_bytes - part_bytes ))
+if [ "$disk_bytes" -gt 0 ] && [ "$tail_free" -gt $(( 256 * 1024 * 1024 )) ]; then
+  die "partition does not fill the card: ${tail_free} B unused after it (disk=$disk_bytes) — grow the partition"
+fi
+log "OK: root fs $(df -h / | awk 'NR==2{print $2" ("$5" used)"}'); partition fills the card"

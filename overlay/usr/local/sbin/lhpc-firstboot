@@ -3,9 +3,9 @@
 # public onboarding defaults; no lhpc-config.txt edit is required. On any failure it stays
 # armed (unit not marked done) with the AP + SSH recovery path left up where possible.
 #
-# Owns rootfs expansion itself (step_growroot) — the base's rpi-resize.service is
-# ConditionFirstBoot and gets consumed by our nspawn build boot, so it never runs on the Pi.
-# Substitutes absent hardware only under LHPC_FIRSTBOOT_CI=1 (Gate A2), never in the sealed image.
+# Rootfs expansion is done EARLIER by lhpc-growroot.service (ordered before this unit), so by the
+# time firstboot writes anything there is already free space. Substitutes absent hardware only
+# under LHPC_FIRSTBOOT_CI=1 (Gate A2), never in the sealed image.
 set -o errexit -o nounset -o pipefail
 
 STATE=/var/lib/lhpc/firstboot.d
@@ -121,36 +121,6 @@ EXPOSE="$(ov EXPOSE_SCOPE "${EXPOSE_SCOPE:-none}")"
 AP_ADDR="${AP_ADDR:-10.42.0.1}"; AP_PREFIX="${AP_PREFIX:-24}"; AP_CIDR="${AP_CIDR:-10.42.0.0/24}"
 
 # =====================  STEPS  ==============================================
-step_growroot(){
-  # Grow the root filesystem to fill its partition. The base's first-boot resize
-  # (rpi-resize.service, ConditionFirstBoot=yes, disables itself after running) is CONSUMED by
-  # our nspawn build boot, so it never fires on real hardware — we own expansion here. The
-  # partition grow survives the base mechanism (growpart is a backstop). Idempotent: resize2fs
-  # on an already-full fs is a no-op. A real block-device resize is hardware Gate B (no device
-  # in nspawn), so CI skips this and the gate pre-grows its throwaway copy instead.
-  if [ "$CI" = "1" ]; then say "CI mode: skipping rootfs grow (no real block device; Gate B on hardware)"; return 0; fi
-  local src part disk partnum
-  src="$(findmnt -no SOURCE / 2>/dev/null || true)"
-  case "$src" in /dev/*) : ;; *) say "growroot: root '$src' is not a block device — skipping"; return 0;; esac
-  part="${src#/dev/}"
-  disk="$(lsblk -no PKNAME "$src" 2>/dev/null | head -1)"
-  partnum="$(cat "/sys/class/block/$part/partition" 2>/dev/null || true)"
-  # Extend the partition into any free space after it (no-op when it already fills the disk).
-  if [ -n "$disk" ] && [ -n "$partnum" ] && command -v growpart >/dev/null 2>&1; then
-    if growpart "/dev/$disk" "$partnum" >/tmp/lhpc-growpart 2>&1; then
-      say "growroot: extended partition — $(tail -1 /tmp/lhpc-growpart)"
-      partprobe "/dev/$disk" 2>/dev/null || partx -u "/dev/$disk" 2>/dev/null || true
-    elif grep -qi 'NOCHANGE' /tmp/lhpc-growpart; then
-      say "growroot: partition already fills the disk"
-    else
-      say "growroot: growpart did not extend the partition — $(tail -1 /tmp/lhpc-growpart)"
-    fi
-    rm -f /tmp/lhpc-growpart
-  fi
-  # Grow the filesystem to the partition size (online resize of the mounted root; idempotent).
-  resize2fs "$src" 2>&1 | sed 's/^/  resize2fs: /' || fail "resize2fs failed to grow $src"
-  say "growroot: root fs now $(df -h / | awk 'NR==2{print $2" ("$5" used)"}')"
-}
 step_identity(){ systemd-machine-id-setup >/dev/null 2>&1 || true; }
 step_hostname(){
   hostnamectl set-hostname "$HOSTNAME_FINAL" 2>/dev/null || echo "$HOSTNAME_FINAL" > /etc/hostname
@@ -296,7 +266,7 @@ step_swap(){
 }
 
 # =====================  ORDER  =============================================
-run_step growroot   step_growroot      # grow rootfs to fill the card BEFORE anything writes
+# (rootfs is already grown by lhpc-growroot.service, ordered before this unit)
 run_step identity   step_identity
 run_step hostname   step_hostname
 run_step account    step_account

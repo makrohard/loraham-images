@@ -72,9 +72,9 @@ mount_image "$ROOT"
 "$_here/resolve-base.sh" --verify-mounted "$ROOT"
 assert_guest_arm64 "$ROOT"
 
-# overlay (firstboot program + unit + generated boot README later)
+# overlay (firstboot + growroot programs + units + generated boot README later)
 cp -a "$_repo/overlay/." "$ROOT/"
-chmod 0755 "$ROOT/usr/local/sbin/lhpc-firstboot"
+chmod 0755 "$ROOT/usr/local/sbin/lhpc-firstboot" "$ROOT/usr/local/sbin/lhpc-growroot"
 
 # baked config for firstboot + provision
 install -d -m0755 "$ROOT/etc/lhpc"
@@ -215,6 +215,11 @@ fi
 [ -f "$ROOT/etc/systemd/system/lhpc-firstboot.service" ] || die "lhpc-firstboot.service unit missing before arming"
 mkdir -p "$ROOT/etc/systemd/system/multi-user.target.wants"
 ln -sf ../lhpc-firstboot.service "$ROOT/etc/systemd/system/multi-user.target.wants/lhpc-firstboot.service"
+
+# arm the early rootfs-grow oneshot (runs before firstboot; fail-closed, owns expansion)
+[ -f "$ROOT/etc/systemd/system/lhpc-growroot.service" ] || die "lhpc-growroot.service unit missing before arming"
+mkdir -p "$ROOT/etc/systemd/system/sysinit.target.wants"
+ln -sf ../lhpc-growroot.service "$ROOT/etc/systemd/system/sysinit.target.wants/lhpc-growroot.service"
 
 # Re-arm the base's first-boot rootfs grow. rpi-resize.service is ConditionFirstBoot=yes and
 # disables itself when it runs (ExecStartPost) — and it RAN during our nspawn provisioning boot

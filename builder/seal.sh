@@ -106,23 +106,28 @@ then log "assert OK: operator password hash matches the documented default"
 else die "seal failed: operator hash does not match the documented onboarding password"
 fi
 
-# (f) root-filesystem expansion is OWNED by lhpc-firstboot. The base's rpi-resize.service is
-# ConditionFirstBoot=yes and disables itself the moment it runs — and it runs (and self-disables)
-# during our nspawn provisioning boot, so it is already spent before the image reaches hardware.
-# Relying on it (as an earlier "unit present" check did) left the fs unexpanded on real Pis.
-# Assert instead that firstboot carries step_growroot (growpart + resize2fs) and is armed.
-if grep -q 'step_growroot' "$ROOT/usr/local/sbin/lhpc-firstboot" 2>/dev/null; then
-  log "assert OK: lhpc-firstboot owns rootfs expansion (step_growroot present)"
+# (f) root-filesystem expansion. The base's rpi-resize.service is ConditionFirstBoot=yes and
+# disables itself the moment it runs — and it runs (and self-disables) during our nspawn
+# provisioning boot, so it is already spent before the image reaches hardware. Relying on it (as
+# an earlier "unit present" check did) left the fs unexpanded on real Pis. We instead OWN expansion
+# with lhpc-growroot.service (fail-closed, ordered before firstboot). Assert HARD that the mechanism
+# is actually shipped and armed, and that its required tool is present — a missing piece here is the
+# exact class of bug that shipped an unexpandable image.
+[ -x "$ROOT/usr/local/sbin/lhpc-growroot" ] || die "seal failed: /usr/local/sbin/lhpc-growroot missing or not executable"
+[ -L "$ROOT/etc/systemd/system/sysinit.target.wants/lhpc-growroot.service" ] \
+  || die "seal failed: lhpc-growroot.service not armed (sysinit.target.wants) — rootfs would never expand"
+if ls "$ROOT"/usr/bin/growpart "$ROOT"/bin/growpart "$ROOT"/usr/sbin/growpart "$ROOT"/sbin/growpart >/dev/null 2>&1; then
+  log "assert OK: lhpc-growroot armed + growpart present (rootfs expansion owned + verified)"
 else
-  die "seal failed: lhpc-firstboot lacks step_growroot — rootfs would never expand on hardware"
+  die "seal failed: growpart not in image — lhpc-growroot cannot grow the partition"
 fi
-# The base's EARLY grow (rpi-resize.service) should be re-armed too (disarm re-enables it after our
-# build boot consumed it) so on-boot services get space before firstboot. Advisory: step_growroot
+# The base's EARLY grow (rpi-resize.service) is re-armed too (disarm re-enables it after our build
+# boot consumed it) so on-boot services get space even before lhpc-growroot. Advisory: lhpc-growroot
 # guarantees expansion regardless, so a disabled rpi-resize is a warning, not a hard seal failure.
 if [ -L "$ROOT/etc/systemd/system/sysinit.target.wants/rpi-resize.service" ]; then
-  log "assert OK: rpi-resize.service re-armed for the real first boot"
+  log "assert OK: rpi-resize.service re-armed (early on-boot grow, before rpi-swap)"
 else
-  log "assert WARN: rpi-resize.service not re-armed — early on-boot services may hit the release-sized fs until step_growroot runs"
+  log "assert WARN: rpi-resize.service not re-armed — early on-boot services may briefly hit the release-sized fs until lhpc-growroot runs"
 fi
 
 group_end

@@ -1,0 +1,17 @@
+[Unit]
+Description=loraham-images: grow root filesystem to fill the card (before firstboot)
+Documentation=man:growpart(1) man:resize2fs(8)
+DefaultDependencies=no
+Conflicts=shutdown.target
+After=systemd-remount-fs.service
+# Run before ANY first-boot writes and before swap/local-fs setup, so nothing touches a full
+# release-sized filesystem first. Fail-closed: on hardware it must expand and verify.
+Before=local-fs.target swap.target lhpc-firstboot.service shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/lhpc-growroot
+
+[Install]
+WantedBy=sysinit.target

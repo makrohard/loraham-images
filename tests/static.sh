@@ -4,7 +4,7 @@ set -o errexit -o nounset -o pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 echo "== bash -n (syntax) =="
-scripts=(builder/*.sh overlay/usr/local/sbin/lhpc-firstboot tests/*.sh)
+scripts=(builder/*.sh overlay/usr/local/sbin/lhpc-firstboot overlay/usr/local/sbin/lhpc-growroot tests/*.sh)
 for f in "${scripts[@]}"; do bash -n "$f" && echo "  ok $f"; done
 
 echo "== shellcheck =="

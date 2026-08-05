@@ -70,15 +70,19 @@ if dpkg-divert --list /usr/sbin/update-initramfs 2>/dev/null | grep -q .; then d
 if [ -L /usr/sbin/update-initramfs ]; then die "update-initramfs is still the /bin/true stub"; fi
 [ -x /usr/sbin/update-initramfs ] || die "update-initramfs missing/not executable after restore"
 
-# ---- 2. base tools + AP DHCP/NAT dependency (blocker fix) -------------------
+# ---- 2. base tools + AP DHCP/NAT dependency + rootfs-grow tool -------------
 # git/curl/ca-certificates are needed before bootstrap-deps installs them (we clone the
 # repo to obtain bootstrap-deps.sh itself). NM ipv4.method shared needs dnsmasq + a NAT backend.
-say "installing base tools (git curl ca-certificates python3-dev) + NM shared deps (dnsmasq-base + NAT backend)"
+# cloud-guest-utils provides growpart, REQUIRED by lhpc-growroot.service (the base does not ship
+# it reliably); seal fails closed if it is missing, so ensure it here.
+say "installing base tools (git curl ca-certificates python3-dev) + NM shared deps (dnsmasq-base + NAT) + growpart"
 # python3-dev: non-GUI, lets the reticulum venv compile spidev/gpiod C extensions (arm64 wheels
 # are not always published). GUI-only optional deps stay out (Lite headless).
-apt-get install -y --no-install-recommends git curl ca-certificates python3-dev dnsmasq-base
+apt-get install -y --no-install-recommends git curl ca-certificates python3-dev dnsmasq-base cloud-guest-utils
 # NAT backend: prefer nftables (Trixie default); iptables as the compatibility shim.
 apt-get install -y --no-install-recommends nftables iptables || true
+# Fail early (clearer than the seal) if growpart is still absent — the expansion mechanism needs it.
+command -v growpart >/dev/null 2>&1 || die "growpart missing after installing cloud-guest-utils — rootfs expansion tool unavailable"
 
 # ---- 3. operator account + groups ------------------------------------------
 say "creating operator user '$OPERATOR_USER'"

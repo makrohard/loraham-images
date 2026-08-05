@@ -224,8 +224,10 @@ ln -sf ../lhpc-growroot.service "$ROOT/etc/systemd/system/sysinit.target.wants/l
 # SINGLE expansion owner: lhpc-growroot.service (above) does growpart+resize2fs itself and is
 # ordered before the base swap setup. We deliberately DO NOT re-arm the base rpi-resize.service —
 # it pulls systemd-growfs-root, and an unordered second resizer racing lhpc-growroot on the same
-# live partition is a real hazard. Our nspawn build boot already consumed+disabled rpi-resize
-# (ConditionFirstBoot self-disable); seal.sh asserts it stays disabled so the two never coexist.
+# live partition is a real hazard. Our nspawn build boot consumes+disables rpi-resize
+# (ConditionFirstBoot self-disable), but make it DETERMINISTIC: explicitly unlink any enable
+# symlink so it can never ship armed alongside lhpc-growroot (seal.sh also fails closed on it).
+rm -f "$ROOT/etc/systemd/system/sysinit.target.wants/rpi-resize.service"
 # systemd-networkd-wait-online only ever fails on this NetworkManager image (networkd is unused);
 # mask it (symlink to /dev/null) so it stops surfacing as a failed unit at boot. NM provides
 # network-online.target readiness via NetworkManager-wait-online, so this is safe.

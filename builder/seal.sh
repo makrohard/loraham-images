@@ -42,6 +42,9 @@ rm -f "$ROOT"/etc/ssh/ssh_host_* 2>/dev/null || true
 # --- base-shipped private keys: inspect + regenerate-per-device --------------
 # ssl-cert snakeoil key is generated per-machine at install; strip it (regenerated on demand).
 rm -f "$ROOT"/etc/ssl/private/ssl-cert-snakeoil.key "$ROOT"/etc/ssl/certs/ssl-cert-snakeoil.pem 2>/dev/null || true
+# wayvnc (Desktop) ships/generates device-specific VNC RSA + TLS keys; strip them so no shared
+# VNC key ships in the image (wayvnc regenerates its rsa key per device on first run).
+rm -f "$ROOT"/etc/wayvnc/*.pem "$ROOT"/etc/wayvnc/*.key 2>/dev/null || true
 
 # pycryptodome ships throwaway test-vector private keys in its SelfTest suites (base
 # python3-pycryptodome + the meshcore venvs). Static library test data — not device secrets,

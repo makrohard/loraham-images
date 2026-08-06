@@ -1,0 +1,37 @@
+# Changelog
+
+Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
+
+## v0.1.6
+
+- **Recovery no longer depends on a successful first boot.** SSH comes up before the rootfs
+  expansion, and a distinct `lhpc-recovery-<suffix>` access point is raised while first boot is
+  incomplete — a Wi-Fi-only box whose expansion failed is reachable instead of needing the card
+  pulled.
+- **First boot is convergent and interruption-safe.** A corrected `lhpc-config.txt` re-runs the
+  affected steps and they now undo as well as apply; completion is a guarded, flushed transaction
+  that survives a power cut; an existing device PKI is never recreated.
+- **The shipped filesystem has real free space.** The safety margin used to be unallocated
+  partition space, so images went out at their minimum size; ext4 is now grown into it and the
+  build fails below 48 MiB free.
+- **Destructive image steps fail closed.** A failed unmount or loop detach stops the build before
+  repartitioning or truncation, instead of risking a second loop device over a mounted filesystem.
+- **Per-variant posture is declared, not inferred.** Lite proxies the stack web UIs on its access
+  point with no password; Desktop keeps them on loopback. Both apply the managed firewall, block
+  the stacks' own ports, and ship SSH on every interface.
+- **Lite no longer ships a graphical application.** Sideband is a desktop app but declared no
+  graphical package to gate on, so it was installed on the headless image; it is now excluded like
+  Voice and the Node Manager GUI, and Lite is roughly 300 MiB smaller (1058 -> 756 MiB).
+- Timezone is configurable and defaults to `Europe/Berlin`; `tmux` and `btop` are included.
+- Documentation rewritten around one zero-to-hero path, with the first-boot settings, the hardware
+  table and the certificate flow.
+
+## v0.1.5
+
+- `lhpc-growroot.service` owns rootfs expansion as a fail-closed early oneshot, after the base's
+  own resizer was found to disable itself during the build and ship an unexpanded filesystem.
+
+## v0.1.0 – v0.1.4
+
+- First releases: Lite and Desktop images built in CI on native arm64, sealed and gated by a
+  throwaway first-boot plus cold-reboot run.

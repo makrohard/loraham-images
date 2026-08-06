@@ -1,25 +1,35 @@
 # LoRaHAM Pi (Desktop) — first steps
 
-This box was flashed from a **loraham-images** release. Placeholders are filled in from the
-image's onboarding defaults when this file is generated.
+Flashed from a **loraham-images** release. Values below come from the image's onboarding defaults.
 
 ## Get in
 
 1. It boots to a desktop. Sign in as **@OPERATOR_USER@** / **@OPERATOR_PASSWORD@**.
-2. Connect Wi-Fi from the desktop's network menu (or use Ethernet).
-3. Open a browser **on this Pi** and go to **https://127.0.0.1:@CONSOLE_PORT@/** — accept the
-   local certificate warning. The console is **local-only** (not exposed to your network), and
-   **SSH is off** by default.
+2. Connect Wi-Fi from the network menu, or use Ethernet.
+3. Open a browser **on this Pi**: **https://127.0.0.1:@CONSOLE_PORT@/** — accept the certificate warning.
 
-## Then, in order
+SSH is **on**, on every network this Pi joins (`ssh @OPERATOR_USER@@<pi-ip>`), so a failed first boot
+cannot lock you out.
 
-- **Change the OS password** — it is a shared default (`passwd` in a terminal).
-- **Pick your radio hardware** and **set your callsign** in the console (or `lhpc hardware` /
-  `lhpc config operator --callsign YOURCALL`).
-- Nothing transmits: no stack starts and no RF happens just from booting.
-- Before starting a stack that opens an unauthenticated non-loopback port (e.g. Meshtastic),
-  configure and apply the managed firewall in the console.
-- Region: this image ships **WIFI_COUNTRY=@WIFI_COUNTRY@**. Outside that country, set your
-  regulatory domain before normal radio/Wi-Fi use.
-- To reach the console from another machine, or to enable SSH, do it deliberately (the console's
-  exposure controls / `raspi-config`).
+## Do these first
+
+- **Change the password** (`passwd`). It is a public default and SSH is reachable.
+- **Update the OS:** `sudo apt update && sudo apt full-upgrade`.
+- **Pick your radio hardware** (`lhpc hardware`) and **set your callsign**
+  (`lhpc config operator --callsign YOURCALL`). Nothing transmits until you do.
+
+## What is already set up
+
+- Console on **127.0.0.1:@CONSOLE_PORT@**, MeshCom on **:8444**, Meshtastic on **:8445** — all on this
+  Pi only. The stacks are not exposed to any network.
+- The managed firewall is **already applied**; the stacks' own ports are blocked.
+- Timezone **@TIMEZONE@**, Wi-Fi country **@WIFI_COUNTRY@** — change either in `lhpc-config.txt`.
+  A Pi has no battery clock, so an offline box keeps the time it last knew.
+- **Every stack is already installed and built** — none is running, and nothing transmits
+  just from booting. Start what you want with `lhpc stack start <name>`.
+- Boot auto-restore is **on**: whatever is running when you reboot comes back by itself
+  (`lhpc autostart` to see or change it).
+
+## Reaching the console from another machine
+
+Expose it deliberately, with a client certificate — see the repo README.

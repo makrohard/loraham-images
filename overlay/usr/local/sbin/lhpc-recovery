@@ -1,0 +1,48 @@
+#!/bin/sh
+# Recovery access, deliberately independent of everything that can fail.
+#
+# lhpc-firstboot carries Requires=lhpc-growroot.service, and growroot is fail-closed: an
+# unresolvable parent disk, a resize2fs failure or a postcondition miss stops it. That is the
+# right behaviour for firstboot — nothing heavy should write to an unexpanded filesystem — but
+# firstboot is also what starts sshd and forms the AP, so a failed expansion used to leave the
+# operator with no AP, no SSH and no console. Only pulling the card got you back in, and the
+# plan's stated success property is the opposite: "never leave the user with neither Web GUI
+# nor recovery".
+#
+# So the minimum needed to GET IN lives here, ordered BEFORE growroot and gated on nothing:
+# host keys plus sshd. It writes a few KB. That only works because shrink.sh now GROWS ext4 into
+# the MARGIN_MB partition space and fails the build below 48 MiB free — before that fix the
+# margin was unallocated partition space and the shipped filesystem had no real headroom at all. Everything else stays behind the fail-closed
+# gate. Idempotent: firstboot's own ssh-keygen -A is a no-op once these keys exist.
+set -eu
+
+log(){ echo "lhpc-recovery: $*"; }
+
+[ -f /etc/lhpc/image.env ] && . /etc/lhpc/image.env 2>/dev/null || true
+
+# Follow SSH_ENABLE, the same knob step_sshd and step_hostkeys use. This gated on VARIANT while
+# the comment claimed "Desktop keeps SSH off by design" — untrue once Desktop set SSH_ENABLE=on,
+# and it mattered: with growroot failed, firstboot never runs step_sshd either, so a Desktop box
+# had no SSH at all. One knob, one meaning, every SSH decision point.
+if [ "${SSH_ENABLE:-off}" != "on" ]; then
+  log "SSH_ENABLE!=on — SSH stays off for this image"
+  exit 0
+fi
+
+# Fail-soft throughout: recovery must never itself become a reason the box does not boot.
+ssh-keygen -A >/dev/null 2>&1 || log "WARNING: ssh-keygen -A failed (fs full?) — continuing"
+install -d -m0755 /run/sshd 2>/dev/null || true
+
+# enable = symlink only; start = --no-block. NEVER `enable --now` here: that issues a start job
+# and WAITS for it, and this unit runs at sysinit with DefaultDependencies=no ordered before
+# growroot — so the job cannot complete until units ordered AFTER us run. systemd's default
+# TimeoutStartSec for Type=oneshot is infinity, so the boot hung forever:
+#   [ *** ] Job lhpc-recovery.service/start running (21min 26s / no limit)
+if systemctl enable ssh.socket >/dev/null 2>&1 || systemctl enable ssh.service >/dev/null 2>&1; then
+  systemctl start --no-block ssh.socket >/dev/null 2>&1 \
+    || systemctl start --no-block ssh.service >/dev/null 2>&1 || true
+  log "recovery sshd enabled and starting on all interfaces"
+else
+  log "WARNING: could not enable sshd — recovery path unavailable"
+fi
+exit 0

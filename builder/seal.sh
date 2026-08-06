@@ -98,9 +98,16 @@ log "assert OK: machine-id cleared"
 shadow_hash="$(awk -F: -v u="$OP" '$1==u{print $2}' "$ROOT/etc/shadow")"
 [ -n "$shadow_hash" ] || die "seal failed: no shadow entry for $OP"
 if OP_PW="$OP_PW" SHADOW="$shadow_hash" python3 - <<'PY'
-import os, crypt, sys
-pw, h = os.environ["OP_PW"], os.environ["SHADOW"]
-sys.exit(0 if crypt.crypt(pw, h) == h else 1)
+# libcrypt via ctypes, NOT the stdlib `crypt` module: that module is removed in Python 3.13,
+# so importing it would fail on a future runner image and take this fail-closed assertion with
+# it. crypt(3) itself is what supports Trixie's yescrypt ($y$) hashes.
+import ctypes, ctypes.util, os, sys
+lib = ctypes.util.find_library("crypt") or "libcrypt.so.1"
+c = ctypes.CDLL(lib)
+c.crypt.restype = ctypes.c_char_p
+c.crypt.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+pw, h = os.environ["OP_PW"].encode(), os.environ["SHADOW"].encode()
+sys.exit(0 if c.crypt(pw, h) == h else 1)
 PY
 then log "assert OK: operator password hash matches the documented default"
 else die "seal failed: operator hash does not match the documented onboarding password"
@@ -113,7 +120,12 @@ fi
 # with lhpc-growroot.service (fail-closed, ordered before firstboot). Assert HARD that the mechanism
 # is actually shipped and armed, and that its required tool is present — a missing piece here is the
 # exact class of bug that shipped an unexpandable image.
-[ -x "$ROOT/usr/local/sbin/lhpc-growroot" ] || die "seal failed: /usr/local/sbin/lhpc-growroot missing or not executable"
+# Every overlay program, not a hand-maintained subset: lhpc-firstboot was never asserted, and
+# the modes were mixed (growroot 100644 + an explicit chmod, the others 100755 via cp -a). One
+# rule, so a fifth script cannot ship non-executable and unnoticed.
+for _p in lhpc-firstboot lhpc-growroot lhpc-recovery lhpc-recovery-ap; do
+  [ -x "$ROOT/usr/local/sbin/$_p" ] || die "seal failed: /usr/local/sbin/$_p missing or not executable"
+done
 [ -L "$ROOT/etc/systemd/system/sysinit.target.wants/lhpc-growroot.service" ] \
   || die "seal failed: lhpc-growroot.service not armed (sysinit.target.wants) — rootfs would never expand"
 # "any of these paths exists" — NOT `ls a b c d` (that exits non-zero if ANY path is missing,
@@ -127,6 +139,25 @@ fi
 # firstboot must HARD-depend on a successful expansion, so it never writes to an unexpanded fs.
 # Requires= propagates failure ONLY together with After= (ordering) — assert BOTH are present.
 fbunit="$ROOT/etc/systemd/system/lhpc-firstboot.service"
+[ -L "$ROOT/etc/systemd/system/sysinit.target.wants/lhpc-recovery.service" ] \
+  || die "seal failed: lhpc-recovery.service not armed — a failed expansion would leave no way in"
+grep -q '^Requires=' "$ROOT/etc/systemd/system/lhpc-recovery.service" \
+  && die "seal failed: lhpc-recovery.service must not Require anything — that is the whole point"
+[ -L "$ROOT/etc/systemd/system/multi-user.target.wants/lhpc-recovery-ap.service" ] \
+  || die "seal failed: lhpc-recovery-ap.service not armed — a Wi-Fi-only box with a failed expansion would be unreachable"
+grep -q '^Requires=' "$ROOT/etc/systemd/system/lhpc-recovery-ap.service" \
+  && die "seal failed: lhpc-recovery-ap.service must not Require anything"
+
+# Neither first-boot marker may ship. .firstboot-done would make the unit's ConditionPathExists
+# skip onboarding entirely; .firstboot-finalizing is worse — firstboot would take the "completion
+# was interrupted" path, mark itself done and disable, so the image would arrive looking
+# commissioned while never having run a single step.
+for _m in .firstboot-done .firstboot-finalizing; do
+  [ -e "$ROOT/var/lib/lhpc/$_m" ] \
+    && die "seal failed: $_m present in the image — first boot would be skipped"
+done
+log "assert OK: no first-boot markers in the image"
+log "assert OK: lhpc-recovery armed, ordered before growroot, gated on nothing"
 grep -q '^Requires=lhpc-growroot.service' "$fbunit" \
   || die "seal failed: lhpc-firstboot.service missing Requires=lhpc-growroot.service (failure would not block firstboot)"
 grep -qE '^After=.*\blhpc-growroot\.service\b' "$fbunit" \

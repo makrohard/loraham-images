@@ -1,0 +1,89 @@
+#!/bin/sh
+# Fallback AP, so a Wi-Fi-only box is reachable even when first boot never runs.
+#
+# lhpc-recovery starts sshd early, but a Pi Zero 2 W has no Ethernet: sshd listening on *:22 is
+# unreachable if no interface is configured. The normal AP is created by step_ap INSIDE
+# lhpc-firstboot, which hard-requires the fail-closed lhpc-growroot — so a failed expansion (or
+# any pre-AP step failing) left the primary Lite target recoverable only by pulling the card.
+#
+# This raises a DISTINCT recovery SSID so a broken box is identifiable on sight, and only while
+# first boot has not completed. It cannot live in lhpc-recovery: that unit runs around sysinit,
+# before NetworkManager exists, and forming an AP needs NM up AND a regulatory domain set (an
+# unset country is the most common reason an AP never appears). Hence a second unit, ordered
+# after NM and gated on nothing.
+set -eu
+
+log(){ echo "lhpc-recovery-ap: $*"; }
+
+[ -f /etc/lhpc/onboarding-defaults.env ] && . /etc/lhpc/onboarding-defaults.env 2>/dev/null || true
+[ -f /etc/lhpc/image.env ] && . /etc/lhpc/image.env 2>/dev/null || true
+# CI (Gate A2, nspawn) has no wifi device, so the wait below would burn 60s per boot for nothing —
+# and this unit is ordered BEFORE firstboot, so that delay is on the critical path. Same marker
+# lhpc-growroot uses; it can never be in the sealed image.
+[ -f /etc/lhpc/ci.env ] && . /etc/lhpc/ci.env 2>/dev/null || true
+if [ "${LHPC_FIRSTBOOT_CI:-0}" = "1" ]; then
+  log "CI mode: no wifi device — recovery AP is hardware Gate B"
+  exit 0
+fi
+
+CON=lhpc-recovery-ap
+
+# Once firstboot has completed, the real per-device AP owns the radio. Remove any recovery AP we
+# left behind and get out of the way — two APs on one radio is its own failure.
+if [ -e /var/lib/lhpc/.firstboot-done ]; then
+  if nmcli -t -f NAME connection show 2>/dev/null | grep -qx "$CON"; then
+    nmcli connection delete "$CON" >/dev/null 2>&1 || true
+    log "first boot complete — recovery AP removed"
+  fi
+  exit 0
+fi
+
+# Only where the box's NORMAL networking is an AP. Gating this on SSH_ENABLE was wrong: both
+# variants set it, so Desktop (WIFI_MODE=client) would hijack wlan0 into an AP for its whole
+# first boot — and step_ap, the only teardown, is Lite-only, so it would not be cleaned up until
+# the next reboot. WIFI_MODE is the knob that already says this, so no new flag is needed.
+if [ "${WIFI_MODE:-}" != "ap" ]; then
+  log "WIFI_MODE=${WIFI_MODE:-unset} — this box joins a network, no recovery AP"
+  exit 0
+fi
+
+# Fail-soft from here: this exists to rescue a box, so it must never be the reason one fails.
+i=0
+while [ "$i" -lt 30 ]; do [ -d /sys/class/net/wlan0 ] && break; i=$((i+1)); sleep 2; done
+[ -d /sys/class/net/wlan0 ] || { log "WARNING: no wlan0 — cannot form recovery AP"; exit 0; }
+
+# An unset regulatory domain is the usual reason an AP never appears; set it before asking for one.
+if [ -n "${WIFI_COUNTRY:-}" ]; then
+  iw reg set "$WIFI_COUNTRY" >/dev/null 2>&1 || log "WARNING: iw reg set $WIFI_COUNTRY failed"
+fi
+
+# EXACTLY the derivation lhpc-firstboot uses for the real AP/hostname, so lhpc-recovery-<sfx>
+# and lhpc-<sfx> name the same device. A different source (DT serial-number) with a different
+# filter produced a 5-char suffix that silently dropped uppercase hex — two identifiers for one
+# box, and this is the string a user reads off a broken one.
+SUFFIX="$(sed -n 's/^Serial\s*:\s*//p' /proc/cpuinfo 2>/dev/null | tail -c 5 | tr -d '\n' | tr 'A-F' 'a-f')"
+[ -n "$SUFFIX" ] || SUFFIX=0000
+SSID="${RECOVERY_SSID_BASE:-lhpc-recovery}-${SUFFIX}"
+PSK="${AP_PSK:-lorahampi}"
+
+# Recreate unconditionally. Reusing a profile because it EXISTS trusted the wrong thing: if the
+# add succeeded and the modify failed, the leftover was half-configured, and every later boot
+# skipped configuration and tried to activate it — permanently, because in the growroot-failure
+# state firstboot never runs to repair anything. Deleting first makes this convergent whatever
+# the previous boot left behind, and a failed modify removes the partial rather than keeping it.
+nmcli connection delete "$CON" >/dev/null 2>&1 || true
+nmcli connection add type wifi ifname wlan0 con-name "$CON" autoconnect yes ssid "$SSID" \
+  >/dev/null 2>&1 || { log "WARNING: could not define recovery AP"; exit 0; }
+nmcli connection modify "$CON" \
+  802-11-wireless.mode ap 802-11-wireless.band bg ipv4.method shared \
+  ipv4.addresses "${AP_ADDR:-10.42.0.1}/${AP_PREFIX:-24}" \
+  wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$PSK" >/dev/null 2>&1 \
+  || { nmcli connection delete "$CON" >/dev/null 2>&1 || true
+       log "WARNING: could not configure recovery AP — partial profile removed"; exit 0; }
+
+if nmcli connection up "$CON" >/dev/null 2>&1; then
+  log "recovery AP up: SSID $SSID at ${AP_ADDR:-10.42.0.1} (first boot has not completed)"
+else
+  log "WARNING: recovery AP did not activate"
+fi
+exit 0

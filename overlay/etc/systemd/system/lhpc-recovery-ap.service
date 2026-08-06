@@ -1,0 +1,23 @@
+# Fallback AP while first boot has not completed.
+#
+# Ordered after NetworkManager (an AP cannot form before it) but gated on NOTHING — in
+# particular not on lhpc-growroot or lhpc-firstboot, which is the whole point: a Wi-Fi-only box
+# whose expansion failed must still be reachable. Removes itself once firstboot completes.
+[Unit]
+Description=loraham-images fallback recovery AP (until first boot completes)
+After=NetworkManager.service
+Wants=NetworkManager.service
+# Both units are WantedBy=multi-user.target; without this there is no ordering between
+# them, and this script's wait for wlan0 could outlast firstboot reaching step_ap — the
+# recovery profile (autoconnect yes) would then come up over the real AP.
+Before=lhpc-firstboot.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/lhpc-recovery-ap
+# Never a boot blocker: it exists to rescue a box, so its own failure must not cascade.
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=multi-user.target

@@ -10,6 +10,7 @@ set -o errexit -o nounset -o pipefail
 
 STATE=/var/lib/lhpc/firstboot.d
 DONE=/var/lib/lhpc/.firstboot-done
+FINALIZING=/var/lib/lhpc/.firstboot-finalizing
 BOOTCFG=/boot/firmware/lhpc-config.txt
 DEFAULTS=/etc/lhpc/onboarding-defaults.env
 IMGENV=/etc/lhpc/image.env
@@ -64,6 +65,7 @@ parse_bootcfg(){
     case "$k" in
       WIFI_COUNTRY) case "$v" in [A-Za-z][A-Za-z]) CFG["$k"]="${v^^}";; *) cfg_reject "WIFI_COUNTRY must be two letters (e.g. DE, US, GB), got '$v'";; esac ;;
       AP_PSK)
+        [ "$v" = "REDACTED" ] && cfg_reject "AP_PSK=REDACTED is the placeholder left after first boot — restore the intended AP key. Replaying firstboot on a commissioned box is unsupported."
         if printf '%s' "$v" | LC_ALL=C grep -q '[^ -~]'; then cfg_reject "AP_PSK must be printable ASCII"; fi
         { [ "${#v}" -ge 8 ] && [ "${#v}" -le 63 ]; } && CFG["$k"]="$v" || cfg_reject "AP_PSK must be 8–63 ASCII characters" ;;
       AP_SSID)
@@ -73,16 +75,103 @@ parse_bootcfg(){
         { [ "${#v}" -ge 1 ] && [ "${#v}" -le 63 ]; } || cfg_reject "HOSTNAME must be 1–63 characters"
         case "$v" in *[![:alnum:]-]*|-*|*-) cfg_reject "HOSTNAME may contain only letters, digits and hyphens (no leading/trailing hyphen)";; esac
         CFG["$k"]="$v" ;;
-      PASSWORD)     { [ -n "$v" ] && [ "${#v}" -le 128 ]; } && CFG["$k"]="$v" || cfg_reject "PASSWORD must be 1–128 characters" ;;
+      PASSWORD)
+        # Refuse our OWN redaction sentinel. On completion firstboot rewrites PASSWORD= and
+        # AP_PSK= to the literal REDACTED, and both would otherwise parse as perfectly valid
+        # values — so a rerun could silently set the account password, or the AP key, to the
+        # word "REDACTED". Fail closed and tell the operator to put the real value back.
+        [ "$v" = "REDACTED" ] && cfg_reject "PASSWORD=REDACTED is the placeholder left after first boot — restore the intended password. Replaying firstboot on a commissioned box is unsupported."
+        { [ -n "$v" ] && [ "${#v}" -le 128 ]; } && CFG["$k"]="$v" || cfg_reject "PASSWORD must be 1–128 characters" ;;
       CALL)         case "$v" in *[![:alnum:]/-]*) cfg_reject "CALL has invalid characters";; *) [ "${#v}" -le 16 ] && CFG["$k"]="$v" || cfg_reject "CALL too long";; esac ;;
       EXPOSE_SCOPE) case "$v" in ap|none) CFG["$k"]="$v";; *) cfg_reject "EXPOSE_SCOPE must be 'ap' or 'none'";; esac ;;
+      TIMEZONE)
+        # Zone NAMES only. Reject traversal/absolute paths before touching the filesystem, then
+        # require the zone to actually exist in this image's tzdata — a typo must not silently
+        # leave the box on the base default the way a bad key would.
+        case "$v" in
+          */../*|../*|*/..|/*|*[![:alnum:]/_+-]*) cfg_reject "TIMEZONE must be a zone name like Europe/Berlin, got '$v'" ;;
+        esac
+        [ -f "/usr/share/zoneinfo/$v" ] || cfg_reject "TIMEZONE '$v' is not a known zone in this image (see /usr/share/zoneinfo)"
+        CFG["$k"]="$v" ;;
       # Any other key is a typo (e.g. PASSWROD) — REFUSE so the user isn't left on the public
       # defaults believing they changed something.
-      *) cfg_reject "unknown key '$k' (typo?) — supported: HOSTNAME PASSWORD AP_SSID AP_PSK WIFI_COUNTRY EXPOSE_SCOPE CALL" ;;
+      *) cfg_reject "unknown key '$k' (typo?) — supported: HOSTNAME PASSWORD AP_SSID AP_PSK WIFI_COUNTRY TIMEZONE EXPOSE_SCOPE CALL" ;;
     esac
   done < "$BOOTCFG"
 }
+complete_firstboot(){   # idempotent: safe to re-enter after an interruption
+  # Lite: hand the radio back BEFORE declaring completion. lhpc-recovery-ap runs ahead of us and
+  # only stands down when .firstboot-done already exists at ITS start — which it does not on a
+  # recovered boot — so without this a "completed" box keeps advertising lhpc-recovery-XXXX on the
+  # factory key. The normal profile already exists (finalizing is only written after every step
+  # succeeded), so activate it rather than rebuilding it from a possibly-redacted config.
+  # ACTIVATE FIRST, then remove the rescue profile. NetworkManager deactivates the recovery
+  # connection itself when another one comes up on the same device, so this needs no teardown of
+  # its own — and if activation fails (radio busy, wlan0 not ready on a recovery boot), the rescue
+  # network is still up. Deleting first meant a failed activation left a Zero 2W with no Ethernet
+  # dark for the rest of the boot: it self-heals on reboot, but the operator in front of it sees a
+  # box that lost both networks.
+  # NOT in CI: nspawn has no wlan0, and step_ap deliberately does not activate the profile there
+  # either. Without this guard the Lite gate died at the very last step of firstboot — the marker
+  # was never written, ci-assert waited out its 300s, and each nspawn boot ran toward its 1500s
+  # timeout, twice per variant.
+  if [ "${WIFI_MODE:-}" = "ap" ] && [ "$CI" != "1" ]; then
+    nmcli connection up lhpc-ap >/dev/null 2>&1 || fail "normal AP could not be restored"
+    nmcli connection down lhpc-recovery-ap >/dev/null 2>&1 || true
+    nmcli connection delete lhpc-recovery-ap >/dev/null 2>&1 || true
+  fi
+  # Each transition is flushed: this spans TWO filesystems (FAT boot config, ext4 markers) and
+  # unsynced writes can persist out of order. Redaction surviving without the finalizing marker
+  # returns us to the parser lockout; .firstboot-done surviving without the redaction leaves the
+  # credentials on the boot partition with nothing ever coming back for them. Completion runs
+  # once, so a plain sync is worth more than picking at which range to flush.
+  sync
+  if [ -f "$BOOTCFG" ]; then
+    sed -i -E 's/^(\s*(PASSWORD|AP_PSK)\s*=).*/\1REDACTED/' "$BOOTCFG" 2>/dev/null || true
+    # Trust the result, not sed's exit status.
+    grep -E '^\s*(PASSWORD|AP_PSK)\s*=' "$BOOTCFG" 2>/dev/null | grep -qv '=REDACTED$' && \
+      fail "boot config still holds a credential after redaction"
+    sync
+  fi
+  touch "$DONE"
+  sync
+  systemctl disable lhpc-firstboot.service 2>/dev/null || true
+  rm -f "$FINALIZING"
+  sync
+}
+
+# Interrupted during completion: every configuration step already succeeded, so finish rather
+# than replay. This MUST precede parse_bootcfg — the config may already say REDACTED, which the
+# parser refuses, and replaying would re-apply account/AP/PKI against a commissioned box.
+if [ -f "$FINALIZING" ]; then
+  say "completion was interrupted — finishing without replaying any step"
+  complete_firstboot
+  say "FIRSTBOOT COMPLETE (recovered)"
+  exit 0
+fi
+
 parse_bootcfg
+
+# A corrected lhpc-config.txt must actually apply. run_step marks each step permanently done, so
+# a box that failed at (say) console and then had PASSWORD or HOSTNAME fixed would skip account
+# and hostname on the next boot and silently keep the OLD values — the same "you changed a
+# setting and nothing happened" outcome that unknown-key rejection exists to prevent, through a
+# different door. So: fingerprint the resolved overrides and, when they change, drop the step
+# markers and run the whole sequence again (firstboot is idempotent by design).
+cfg_hash="none"
+if [ "${#CFG[@]}" -gt 0 ]; then
+  cfg_hash="$(for k in $(printf '%s\n' "${!CFG[@]}" | sort); do printf '%s=%s\n' "$k" "${CFG[$k]}"; done \
+              | sha256sum | cut -d' ' -f1)"
+fi
+if [ -f "$STATE/config.hash" ] && [ "$(cat "$STATE/config.hash")" != "$cfg_hash" ]; then
+  say "lhpc-config.txt changed since the last attempt — clearing step markers so the new values apply"
+  # device_pki.done is PRESERVED: the accepted policy is to keep an existing PKI (and with it
+  # the previous hostname SAN), and re-running `webserver init` over existing CAs is refused
+  # with exit 1 — which would loop forever. If the first attempt never got that far there is
+  # no marker, so initialisation still happens.
+  find "$STATE" -maxdepth 1 -name '*.done' ! -name 'device_pki.done' -delete
+fi
+printf '%s\n' "$cfg_hash" > "$STATE/config.hash"
 ov(){ local k="$1" d="$2"; [ -n "${CFG[$k]:-}" ] && printf '%s' "${CFG[$k]}" || printf '%s' "$d"; }
 
 : "${VARIANT:?}"; : "${OPERATOR_USER:?}"
@@ -116,23 +205,47 @@ OS_PW="$(ov PASSWORD "${OPERATOR_PASSWORD:-lhpc}")"
 AP_SSID_FINAL="$(ov AP_SSID "${AP_SSID_BASE:-lhpc}-$SUFFIX")"
 AP_PSK_FINAL="$(ov AP_PSK "${AP_PSK:-lorahampi}")"
 COUNTRY="$(ov WIFI_COUNTRY "${WIFI_COUNTRY:-DE}")"
+TZ_FINAL="$(ov TIMEZONE "${TIMEZONE:-Europe/Berlin}")"
 CALL_FINAL="$(ov CALL "")"
 EXPOSE="$(ov EXPOSE_SCOPE "${EXPOSE_SCOPE:-none}")"
 AP_ADDR="${AP_ADDR:-10.42.0.1}"; AP_PREFIX="${AP_PREFIX:-24}"; AP_CIDR="${AP_CIDR:-10.42.0.0/24}"
 
 # =====================  STEPS  ==============================================
 step_identity(){ systemd-machine-id-setup >/dev/null 2>&1 || true; }
+step_timezone(){
+  # The base ships Europe/London, so without this every box reports UK local time whatever
+  # region it is in. Written directly (symlink + /etc/timezone) rather than via timedatectl:
+  # no dbus dependency, and it is the same result. Fail-closed — the zone was validated at
+  # parse time, so a missing file here means a broken image, not a user typo.
+  [ -f "/usr/share/zoneinfo/$TZ_FINAL" ] || fail "timezone '$TZ_FINAL' missing from /usr/share/zoneinfo"
+  ln -sf "/usr/share/zoneinfo/$TZ_FINAL" /etc/localtime
+  printf '%s\n' "$TZ_FINAL" > /etc/timezone
+  [ "$(readlink -f /etc/localtime)" = "$(readlink -f "/usr/share/zoneinfo/$TZ_FINAL")" ] \
+    || fail "timezone not applied (/etc/localtime does not point at $TZ_FINAL)"
+}
 step_hostname(){
   hostnamectl set-hostname "$HOSTNAME_FINAL" 2>/dev/null || echo "$HOSTNAME_FINAL" > /etc/hostname
-  if ! grep -qE "127\.0\.1\.1\s+$HOSTNAME_FINAL" /etc/hosts; then
-    printf '127.0.1.1\t%s\n' "$HOSTNAME_FINAL" >> /etc/hosts
-  fi
+  # Drop any previous 127.0.1.1 line before appending. The old guard was idempotent for the SAME
+  # name but not convergent for a CHANGED one — a corrected HOSTNAME left both entries behind, and
+  # a changed hostname is exactly what the config-change rerun exists to serve.
+  sed -i '/^127\.0\.1\.1\b/d' /etc/hosts
+  printf '127.0.1.1\t%s\n' "$HOSTNAME_FINAL" >> /etc/hosts
 }
-step_account(){ printf '%s:%s\n' "$OP" "$OS_PW" | chpasswd; }
+step_account(){
+  # NB: do NOT `passwd --expire` here to force a change at first login. MEASURED on hardware:
+  # an expired password makes user@<uid>.service fail with "Failed at step PAM spawning
+  # /usr/lib/systemd/systemd" (status=224/PAM), and that lingering user manager is exactly what
+  # runs lhpc-web and lhpc-nginx — the box would boot with no console until someone logged in
+  # over SSH and changed the password. (`runuser`/as_op itself is unaffected; the break is the
+  # user manager.) Closing the shared-password exposure needs a per-device secret, not expiry.
+  printf '%s:%s\n' "$OP" "$OS_PW" | chpasswd
+}
 step_hostkeys(){
-  ssh-keygen -A
-  # Default OFF for both variants (Trixie socket-activates ssh, so disable the socket too).
-  # Lite turns on recovery SSH on all interfaces in step_sshd; Desktop leaves it off (opt-in).
+  ssh-keygen -A            # no-op once lhpc-recovery.service has generated them
+  # Turn sshd off only where SSH_ENABLE!=on. Where it IS on, lhpc-recovery has
+  # already brought sshd up, and disabling it now would re-open the very window this split
+  # exists to close — a failure between here and step_sshd would leave no way in.
+  [ "${SSH_ENABLE:-off}" = "on" ] && return 0
   systemctl disable --now ssh.socket 2>/dev/null || true
   systemctl disable --now ssh.service 2>/dev/null || true
 }
@@ -156,6 +269,11 @@ step_regdomain(){
 }
 
 step_ap(){
+  # Hand over from the fallback recovery AP: it holds the same radio and the same address, so it
+  # must go before the real AP comes up. lhpc-recovery-ap also removes itself once
+  # .firstboot-done exists; this is the immediate half of that handover.
+  nmcli connection down lhpc-recovery-ap >/dev/null 2>&1 || true
+  nmcli connection delete lhpc-recovery-ap >/dev/null 2>&1 || true
   # create/refresh the AP profile (well-formed regardless of a radio being present)
   nmcli connection delete lhpc-ap >/dev/null 2>&1 || true
   nmcli connection add type wifi ifname wlan0 con-name lhpc-ap autoconnect yes ssid "$AP_SSID_FINAL" >/dev/null
@@ -181,7 +299,7 @@ step_sshd(){
   # Recovery SSH for Lite on ALL interfaces (Ethernet, USB-NIC, AP). Deliberately NOT bound to
   # the AP address: a first-boot failure must never lock the operator out of a wired recovery
   # path (an AP-only bind did exactly that). Uses the documented onboarding password — the
-  # README instructs changing it immediately. Desktop leaves SSH off by default.
+  # README instructs changing it immediately. Runs wherever SSH_ENABLE=on (both variants today).
   rm -f /etc/ssh/sshd_config.d/10-lhpc-ap.conf                 # drop any stale AP-only bind
   rm -f /etc/systemd/system/ssh.service.d/10-lhpc-ap.conf 2>/dev/null || true
   systemctl daemon-reload 2>/dev/null || true
@@ -192,16 +310,88 @@ step_sshd(){
     || fail "sshd failed to start"
 }
 step_device_pki(){
-  # fresh per-device CA + server cert. Loopback + hostname + (Lite) AP SANs.
+  # Plain, unconditional init — reached only when device_pki.done is absent, because the marker
+  # survives a config-change rerun (see above). `webserver verify` is NOT a PKI-presence test: it
+  # also validates nginx config, the console unit and the exposure plan, so a first attempt that
+  # died at expose/stackweb/console would make it fail with the PKI already present, run init,
+  # and hit the refusal loop again — correctness would depend on an unrelated health check.
+  # LIMITATION: an existing PKI is kept as-is, so changing HOSTNAME afterwards leaves the old
+  # <host>.local SAN. Access by IP (127.0.0.1 / the AP address) is unaffected; reissue
+  # deliberately with `lhpc webserver init --confirm-recreate`.
   local args=(--dns localhost --dns "$HOSTNAME_FINAL.local" --ip 127.0.0.1)
   [ "$VARIANT" = "lite" ] && args+=(--ip "$AP_ADDR")
-  lhpc webserver init "${args[@]}" || fail "webserver init failed"
+  # --confirm-recreate because creation and the marker are NOT atomic: a power cut (or a failure
+  # partway through the multi-stage init) can leave CA material with device_pki.done unwritten,
+  # and a plain init then refuses forever. Safe in this bounded case only — the sealed image ships
+  # no PKI and the marker is absent, so anything present is from an interrupted, uncommitted
+  # attempt. The marker is still preserved across config changes, so a COMPLETED PKI is never
+  # recreated. The one way to defeat that is to delete device_pki.done by hand on a commissioned
+  # box — see docs/maintenance.md, which warns against it: this would reissue both CAs and
+  # invalidate every client certificate already handed to a browser.
+  lhpc webserver init --confirm-recreate "${args[@]}" || fail "webserver init failed"
 }
 step_expose(){
-  [ "$VARIANT" = "lite" ] || { say "desktop: loopback only, no exposure"; return 0; }
-  [ "$EXPOSE" = "ap" ] || { say "expose scope '$EXPOSE' != ap; skipping"; return 0; }
+  # Reverse transition matters: a rerun with EXPOSE_SCOPE=none must UNDO exposure configured on
+  # an earlier attempt, not merely skip the step and leave it in place.
+  if [ "$VARIANT" != "lite" ] || [ "$EXPOSE" != "ap" ]; then
+    say "expose scope '$EXPOSE' — restoring loopback-only console"
+    lhpc webserver disable-remote >/dev/null 2>&1 || fail "could not restore loopback-only console"
+    return 0
+  fi
   lhpc webserver expose --cidr "$AP_CIDR" --access-mode no-auth \
       --confirm-phrase enable-remote-danger || fail "webserver expose failed"
+}
+step_stackweb(){
+  # Proxy each eligible stack's web UI on the AP CIDR with NO authentication — the same
+  # posture step_expose gives the console. Config only; step_console's single `apply` renders
+  # all of it in one nginx reload. MeshCom is the point: QEMU forwards its UI to 127.0.0.1,
+  # so without a proxy it is unreachable from anywhere but the Pi itself.
+  [ "${PROXY_MODE:-none}" != "none" ] || { say "PROXY_MODE=none; no stack proxies"; return 0; }
+  [ -n "${PROXY_STACKS:-}" ] || { say "PROXY_STACKS empty; nothing to proxy"; return 0; }
+  local s i=0 port
+  for s in ${PROXY_STACKS//,/ }; do
+    port=$(( ${CONSOLE_PORT:-8443} + 1 + i )); i=$(( i + 1 ))
+    # Fail-closed: a stack that cannot be proxied (no HTTP upstream) is a config error, not
+    # something to skip quietly — lhpc says "has no web UI to proxy" and we stop.
+    case "$PROXY_MODE" in
+      ap)
+        # Reachable on the AP, no authentication — the posture step_expose gives the console.
+        lhpc webserver proxy "$s" --mode lan --port "$port" --cidr "$AP_CIDR" \
+            --access-mode no-auth --confirm-phrase enable-remote-danger \
+          || fail "webserver proxy $s on $port failed"
+        say "proxied $s on $port (AP $AP_CIDR, no-auth)" ;;
+      local)
+        # Loopback ONLY: the stacks are not exposed anywhere. This exists so the dashboard can
+        # link them at all — MeshCom's UI is behind QEMU's 127.0.0.1 hostfwd, and lhpc refuses
+        # to render a dead remote link for it. Default access-mode, so no elevation is needed.
+        lhpc webserver proxy "$s" --mode local --port "$port" \
+          || fail "webserver proxy $s on $port failed"
+        say "proxied $s on $port (loopback only)" ;;
+      *) fail "unknown PROXY_MODE '$PROXY_MODE' (expected ap|local|none)" ;;
+    esac
+  done
+}
+step_firewall(){
+  # Applied AFTER the proxies exist, so the receipt carries their ingress. secure-default then
+  # denies the stacks' own native listeners (meshtasticd binds 9443 on all interfaces) while
+  # keeping SSH reachable everywhere: the apply script resolves sshd's EFFECTIVE listen ports
+  # and aborts rather than narrow them, so this cannot lock the operator out.
+  [ "${FIREWALL:-off}" = "on" ] || { say "FIREWALL != on; skipping"; return 0; }
+  if [ "$CI" = "1" ]; then
+    say "CI mode: nftables apply is hardware Gate B — configuring only"
+  fi
+  lhpc firewall --mode secure-default --ap on --ap-interface wlan0 \
+      --ap-cidr "$AP_CIDR" --ssh-ports 22 --allow-endpoints "" \
+    || fail "firewall configure failed"
+  [ "$CI" = "1" ] && return 0
+  # Ask lhpc to PRINT the applier rather than guessing where it wrote it — the path depends on
+  # the operator's runtime root. lhpc runs as the operator; the applier needs root, which is us.
+  local script; script="$(mktemp)"
+  lhpc firewall --script > "$script" || { rm -f "$script"; fail "firewall --script failed"; }
+  [ -s "$script" ] || { rm -f "$script"; fail "firewall apply script came back empty"; }
+  bash "$script" || { rm -f "$script"; fail "firewall apply failed"; }
+  rm -f "$script"
+  say "firewall applied (secure-default; SSH global; stack UIs via proxy on AP only)"
 }
 step_console(){
   local i
@@ -227,7 +417,13 @@ step_healthz(){
   fail "/healthz did not answer"
 }
 step_callsign(){
-  [ -n "$CALL_FINAL" ] && [ "$CALL_FINAL" != "N0CALL" ] || { say "callsign left unset/default"; return 0; }
+  # Same reverse transition: clearing CALL in lhpc-config.txt must clear a callsign applied on an
+  # earlier attempt, not silently leave the old one configured.
+  if [ -z "$CALL_FINAL" ] || [ "$CALL_FINAL" = "N0CALL" ]; then
+    say "callsign unset/default — clearing any previously applied callsign"
+    lhpc config operator --callsign "" >/dev/null 2>&1 || fail "could not clear the callsign"
+    return 0
+  fi
   lhpc config operator --callsign "$CALL_FINAL" || fail "callsign set failed"
 }
 step_swap(){
@@ -268,28 +464,38 @@ step_swap(){
 # =====================  ORDER  =============================================
 # (rootfs is already grown by lhpc-growroot.service, ordered before this unit)
 run_step identity   step_identity
+run_step timezone   step_timezone
 run_step hostname   step_hostname
 run_step account    step_account
 run_step hostkeys   step_hostkeys
 # Lite: bring recovery SSH up EARLY (all interfaces) so a later step failure can't lock us out.
-if [ "$VARIANT" = "lite" ]; then run_step sshd step_sshd; fi
+if [ "${SSH_ENABLE:-off}" = "on" ]; then run_step sshd step_sshd; fi
 run_step regdomain  step_regdomain
 if [ "$VARIANT" = "lite" ]; then
-  run_step ap          step_ap
-  run_step confirm_ap  step_confirm_ap
+  # NOT run_step: radio ownership must be re-established on EVERY incomplete boot. Marker-skipping
+  # these let an unchanged retry finish while lhpc-recovery-ap still held the radio, leaving a
+  # "successful" box advertising lhpc-recovery-XXXX instead of its configured SSID. step_ap already
+  # deletes the recovery profile and recreates the real AP, so just always run them.
+  say "step ap";         step_ap
+  say "step confirm_ap"; step_confirm_ap
 fi
 wait_user_bus
 run_step device_pki step_device_pki
 run_step expose     step_expose
+run_step stackweb   step_stackweb
 run_step console    step_console
+run_step firewall   step_firewall
 run_step healthz    step_healthz
 run_step callsign   step_callsign
 run_step swap       step_swap
 
-# ---- complete: redact secrets from the boot config + disable self ----------
-if [ -f "$BOOTCFG" ]; then
-  sed -i -E 's/^(\s*(PASSWORD|AP_PSK|WIFI_PSK)\s*=).*/\1REDACTED/' "$BOOTCFG" 2>/dev/null || true
-fi
-touch "$DONE"
-systemctl disable lhpc-firstboot.service 2>/dev/null || true
+# ---- complete ---------------------------------------------------------------
+# Guarded by $FINALIZING so completion survives a power cut. Redaction must happen BEFORE
+# .firstboot-done (otherwise an interruption between them leaves the password and AP key in
+# plaintext on the FAT partition, with the unit condition guaranteeing nothing returns to clean
+# them), but that ordering is exactly what strands a box: the next boot would find REDACTED,
+# which the parser rightly refuses, and never reach the completed step markers. The marker says
+# "every step already succeeded, just finish" — see the recovery block near the top.
+touch "$FINALIZING"
+complete_firstboot
 say "FIRSTBOOT COMPLETE (variant=$VARIANT host=$HOSTNAME_FINAL)"

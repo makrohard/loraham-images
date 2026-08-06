@@ -1,0 +1,25 @@
+# Recovery access BEFORE anything that can fail closed.
+#
+# Ordered ahead of lhpc-growroot and with NO Requires= on it, so a failed expansion still
+# leaves a way in. lhpc-firstboot keeps its Requires=lhpc-growroot.service — the fail-closed
+# guarantee is unchanged; only the way back in is decoupled from it.
+[Unit]
+Description=loraham-images recovery access (host keys + sshd, independent of expansion)
+DefaultDependencies=no
+Conflicts=shutdown.target
+After=systemd-remount-fs.service
+Before=lhpc-growroot.service lhpc-firstboot.service shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/lhpc-recovery
+# Type=oneshot defaults to TimeoutStartSec=infinity. A unit whose whole purpose is to keep a
+# broken box reachable must never be able to hang the boot itself.
+TimeoutStartSec=60
+# Never a boot blocker: this exists so a broken box is reachable, so its own failure must not
+# cascade. The script is fail-soft too; this is the belt to that pair of braces.
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=sysinit.target

@@ -81,6 +81,11 @@ say "installing base tools (git curl ca-certificates python3-dev) + NM shared de
 apt-get install -y --no-install-recommends git curl ca-certificates python3-dev dnsmasq-base cloud-guest-utils
 # NAT backend: prefer nftables (Trixie default); iptables as the compatibility shim.
 apt-get install -y --no-install-recommends nftables iptables || true
+# Operator convenience on a box that is usually reached over SSH: a multiplexer so a long build
+# survives a dropped link, and a system monitor. Deliberately NOT in the README — nothing depends
+# on them and they are not part of the documented contract. `|| true`: a missing convenience
+# package must never fail an image build.
+apt-get install -y --no-install-recommends tmux btop || true
 # Fail early (clearer than the seal) if growpart is still absent — the expansion mechanism needs it.
 command -v growpart >/dev/null 2>&1 || die "growpart missing after installing cloud-guest-utils — rootfs expansion tool unavailable"
 
@@ -169,6 +174,10 @@ INSTALLED_ROOT="$(as_op bash -lc 'find "$HOME/loraham-pi-control" -maxdepth 4 -t
 say "installed checkout: $INSTALLED_ROOT"
 INSTALLED_SHA="$(as_op git -C "$INSTALLED_ROOT" rev-parse HEAD 2>/dev/null || true)"
 say "installed HEAD=$INSTALLED_SHA resolved=$LHPC_RESOLVED_SHA"
+# Assert installed == job-start resolved (or a freshly-resolved main, if main advanced mid-job);
+# die on an unexplained mismatch. Kept INLINE — deliberately NOT shared with builder/resolve-lhpc.sh
+# — because provision runs in the container as /usr/local/sbin/lhpc-provision, where that host-side
+# script is never staged (build.sh installs only this file).
 if [ "$INSTALLED_SHA" != "$LHPC_RESOLVED_SHA" ]; then
   FRESH="$(git ls-remote https://github.com/makrohard/loraham-pi-control.git refs/heads/main | awk '{print $1}')"
   [ "$INSTALLED_SHA" = "$FRESH" ] || die "unexplained LHPC SHA mismatch: installed=$INSTALLED_SHA resolved=$LHPC_RESOLVED_SHA current=$FRESH"

@@ -84,7 +84,8 @@ VARIANT=$VARIANT
 BOOTSTRAP_GUI=${BOOTSTRAP_GUI:-}
 WIFI_MODE=${WIFI_MODE:-ap}
 EXPOSE_SCOPE=${EXPOSE_SCOPE:-none}
-SSH_POLICY=${SSH_POLICY:-off}
+PROXY_MODE=${PROXY_MODE:-none}
+SSH_ENABLE=${SSH_ENABLE:-off}
 OPERATOR_USER=$OPERATOR_USER
 OPERATOR_PASSWORD=$OPERATOR_PASSWORD
 LHPC_RESOLVED_SHA=$LHPC_SHA
@@ -106,6 +107,7 @@ render_doc(){
       -e "s#@OPERATOR_USER@#${OPERATOR_USER}#g" \
       -e "s#@OPERATOR_PASSWORD@#${OPERATOR_PASSWORD}#g" \
       -e "s#@WIFI_COUNTRY@#${WIFI_COUNTRY:-DE}#g" \
+      -e "s#@TIMEZONE@#${TIMEZONE:-Europe/Berlin}#g" \
       "$src"
 }
 render_doc > "$ROOT/boot/firmware/README.txt"
@@ -163,6 +165,11 @@ group_begin "provision (systemd-nspawn --boot)"
 attach_loop "$IMG"
 mount_image "$ROOT"
 set +e
+# --capability=all: the guest runs the upstream install path (apt, dpkg maintainer scripts,
+# systemd inside the container) and a non-root user manager that needs bounding-set
+# capabilities it cannot otherwise obtain here (218/CAPABILITIES). Narrowing this was tried
+# and is not worth the fragility: the input is trusted — our own overlay plus a pinned,
+# SHA-verified base — and the container is thrown away at the end of the job.
 SYSTEMD_NSPAWN_LOCK=0 timeout 9000 systemd-nspawn --directory="$ROOT" --boot --register=no \
     --capability=all --machine=lhpcbuild --resolv-conf=off --timezone=off </dev/null
 nspawn_rc=$?
@@ -220,6 +227,11 @@ ln -sf ../lhpc-firstboot.service "$ROOT/etc/systemd/system/multi-user.target.wan
 [ -f "$ROOT/etc/systemd/system/lhpc-growroot.service" ] || die "lhpc-growroot.service unit missing before arming"
 mkdir -p "$ROOT/etc/systemd/system/sysinit.target.wants"
 ln -sf ../lhpc-growroot.service "$ROOT/etc/systemd/system/sysinit.target.wants/lhpc-growroot.service"
+# Recovery access is armed alongside it but ordered BEFORE it and gated on nothing, so a
+# fail-closed expansion cannot take SSH down with it (firstboot keeps its Requires=).
+ln -sf ../lhpc-recovery.service "$ROOT/etc/systemd/system/sysinit.target.wants/lhpc-recovery.service"
+# Fallback AP: after NM, gated on nothing, self-removing once firstboot completes.
+ln -sf ../lhpc-recovery-ap.service "$ROOT/etc/systemd/system/multi-user.target.wants/lhpc-recovery-ap.service"
 
 # SINGLE expansion owner: lhpc-growroot.service (above) does growpart+resize2fs itself and is
 # ordered before the base swap setup. We deliberately DO NOT re-arm the base rpi-resize.service —
@@ -235,15 +247,21 @@ ln -sf /dev/null "$ROOT/etc/systemd/system/systemd-networkd-wait-online.service"
 log "masked systemd-networkd-wait-online.service (unused on NM; only ever fails)"
 group_end
 
-# ---- seal (offline, mounted) -----------------------------------------------
-"$_here/seal.sh" "$ROOT" "$OPERATOR_USER" "$OPERATOR_PASSWORD"
+# ---- cleanup, then seal ----------------------------------------------------
+# Cleanup runs BEFORE seal.sh so that "sealed" means FINAL. It used to run after, which left
+# the private-key scan and every other invariant asserted against a filesystem that then
+# changed. These are all deletions, so nothing unsafe shipped — but the seal should be the last
+# thing that touches the image, or it is not a seal.
 # clear apt caches / logs / history to shrink
 chroot "$ROOT" apt-get clean 2>/dev/null || true
 rm -rf "$ROOT/var/lib/apt/lists/"* "$ROOT/var/cache/apt/archives/"*.deb 2>/dev/null || true
 find "$ROOT/var/log" -type f -exec truncate -s0 {} + 2>/dev/null || true
 rm -f "$ROOT/root/.bash_history" "$ROOT/home/$OPERATOR_USER/.bash_history" 2>/dev/null || true
 # first-boot state must be clean so firstboot actually runs
-rm -rf "$ROOT/var/lib/lhpc/firstboot.d" "$ROOT/var/lib/lhpc/.firstboot-done" "$ROOT/var/lib/lhpc/.provisioned"
+rm -rf "$ROOT/var/lib/lhpc/firstboot.d" "$ROOT/var/lib/lhpc/.firstboot-done" \
+       "$ROOT/var/lib/lhpc/.firstboot-finalizing" "$ROOT/var/lib/lhpc/.provisioned"
+
+"$_here/seal.sh" "$ROOT" "$OPERATOR_USER" "$OPERATOR_PASSWORD"
 detach_image
 
 # ---- shrink ----------------------------------------------------------------

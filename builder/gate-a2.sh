@@ -24,14 +24,20 @@ ROOT="$WORK/mnt-a2"; mkdir -p "$ROOT"
 host_net_fp(){ ip -o addr show 2>/dev/null | awk '{print $2,$4}'; ip -o route show 2>/dev/null; }
 HOST_BEFORE="$(host_net_fp)"
 
+# MNT_ROOT/MNT_BOOT are read by lib.sh's detach_image/cleanup_image, not here.
+# shellcheck disable=SC2034
 mount_copy(){ attach_loop "$COPY"; mount "${LOOPDEV}p2" "$ROOT"; MNT_ROOT="$ROOT";
               mkdir -p "$ROOT/boot/firmware"; mount "${LOOPDEV}p1" "$ROOT/boot/firmware"; MNT_BOOT="$ROOT/boot/firmware"; }
-umount_copy(){ set +e; mountpoint -q "$MNT_BOOT" && umount -R "$MNT_BOOT"; mountpoint -q "$MNT_ROOT" && umount -R "$MNT_ROOT";
-               [ -n "$LOOPDEV" ] && losetup -d "$LOOPDEV"; LOOPDEV=""; MNT_ROOT=""; MNT_BOOT=""; set -e; }
-
 group_begin "Gate A2: prepare throwaway copy + inject CI-only harness"
+# Peak disk lands HERE, not at the one require_free before decompression: --reflink=auto gets
+# no reflink on ext4, so this is a full second copy, and the throwaway is then grown by 2G.
+# Report the budget early instead of failing as a late ENOSPC mid-boot.
+require_free "$(dirname "$COPY")" $(( $(stat -c%s "$SEALED") + 2 * 1024*1024*1024 ))
 cp --reflink=auto "$SEALED" "$COPY"
-trap 'set +e; umount_copy; rm -f "$COPY"' EXIT
+# Teardown on the way out uses lib.sh's best-effort cleanup_image (it must not mask the real
+# failure); phase boundaries use the STRICT detach_image. A local duplicate of cleanup_image
+# used to live here, which is what made "which detach is strict?" ambiguous.
+trap 'set +e; cleanup_image; rm -f "$COPY"' EXIT
 
 # Simulate the Pi's first-boot root expansion. On real hardware lhpc-growroot.service does this
 # (growpart + resize2fs on a real block device); nspawn has no block device, so lhpc-growroot
@@ -113,7 +119,7 @@ WantedBy=multi-user.target
 EOF
 ln -sf ../lhpc-ci-assert.service "$ROOT/etc/systemd/system/multi-user.target.wants/lhpc-ci-assert.service"
 
-umount_copy
+detach_image      # strict: the copy is booted next
 group_end
 
 boot_and_read(){ # $1 mode
@@ -125,6 +131,10 @@ boot_and_read(){ # $1 mode
   rm -f "$ROOT/var/lib/lhpc/gate-a2.result"
   group_begin "Gate A2: boot ($mode) under --private-network"
   set +e
+  # --capability=all: same reason as the provisioning boot in build.sh — the guest runs a full
+  # systemd and a non-root user manager that needs bounding-set capabilities it cannot obtain
+  # here (218/CAPABILITIES). Trusted input, throwaway container, and this boot is additionally
+  # confined to a private network namespace.
   SYSTEMD_NSPAWN_LOCK=0 timeout 1500 systemd-nspawn --directory="$ROOT" --boot --private-network \
       --capability=all --register=no --machine="lhpcgate$mode" --resolv-conf=off --timezone=off </dev/null
   set -e
@@ -132,7 +142,7 @@ boot_and_read(){ # $1 mode
   res="$(cat "$ROOT/var/lib/lhpc/gate-a2.result" 2>/dev/null || echo MISSING)"
   cp -a "$ROOT/var/log/lhpc-firstboot.log" "$OUT/logs-$VARIANT/firstboot-$mode.log" 2>/dev/null || true
   cp -a "$ROOT/var/log/lhpc-ci-assert.log" "$OUT/logs-$VARIANT/assert-$mode.log" 2>/dev/null || true
-  umount_copy
+  detach_image      # strict: another boot of the same copy follows
   log "gate ($mode) result: $res"
   [ "$res" = "PASS" ] || die "Gate A2 ($mode) failed: $res"
 }

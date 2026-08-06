@@ -30,7 +30,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends shellcheck python3
       - run: bash tests/static.sh
 
@@ -63,7 +63,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.precheck.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Assert native arm64 runner
         run: test "$(uname -m)" = aarch64 || { echo "not aarch64 - refuse to emulate"; exit 1; }
       - name: Free disk + install build deps
@@ -82,7 +82,7 @@ jobs:
         run: sudo -E env WORK="$PWD/work" OUT="$PWD/out" WORKFLOW_RUN_ID="$WORKFLOW_RUN_ID" IMAGE_BUILD_COMMIT="$IMAGE_BUILD_COMMIT" bash builder/build.sh ${{ matrix.variant }}
       - name: Upload logs (always)
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-${{ matrix.variant }}
           path: out/logs-${{ matrix.variant }}/**
@@ -90,7 +90,7 @@ jobs:
           retention-days: 14
       - name: Upload image (on success)
         if: success()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: image-${{ matrix.variant }}
           path: |
@@ -109,8 +109,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with: { path: dl }
       - name: Assemble + verify under cap + signature
         run: |
@@ -135,7 +135,7 @@ jobs:
           ( cd rel && sha256sum ./*.img.xz > SHA256SUMS )
           python3 builder/signature.py rel > rel/signature.txt
           ls -l rel
-      - uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda
+      - uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           files: rel/*
           fail_on_unmatched_files: false
@@ -145,15 +145,21 @@ jobs:
   # release — else finish green with no duplicate.
   publish-refresh:
     needs: build
-    if: ${{ always() && (github.event_name == 'schedule' || github.event.inputs.refresh == 'true') }}
+    # NOT always(): a refresh must not publish a partial set. The dated release it creates can
+    # become GitHub's "latest", and the README sends users to either image — so a Lite-only
+    # release would advertise a Desktop image that is not there, and its signature would
+    # differ from the previous two-image one purely because Desktop was missing, i.e. a failed
+    # build would read as "something changed". publish-tag keeps its intentional per-variant
+    # independence; this job requires the whole matrix.
+    if: ${{ needs.build.result == 'success' && (github.event_name == 'schedule' || github.event.inputs.refresh == 'true') }}
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with: { path: dl }
       - name: Assemble, compare full signature, publish dated release on change
         run: |
@@ -167,8 +173,10 @@ jobs:
             cp "dl/logs-$v/lhpc-packages.log" "rel/packages-$v.txt" 2>/dev/null || true
             cp "dl/logs-$v/lhpc-versions.log" "rel/components-$v.txt" 2>/dev/null || true
           done
-          n=$(ls rel/*.img.xz 2>/dev/null | wc -l)
-          [ "$n" -ge 1 ] || { echo "::error::no valid image assets - refusing to publish a dated release"; exit 1; }
+          for v in lite desktop; do
+            [ -f "rel/loraham-lhpc-$v.img.xz" ] \
+              || { echo "::error::refresh publishes BOTH variants or none - $v is missing"; exit 1; }
+          done
           for v in lite desktop; do
             [ -f "rel/loraham-lhpc-$v.img.xz" ] || continue
             for f in "loraham-lhpc-$v.img.xz.sha256" "provenance-$v.json" "packages-$v.txt" "components-$v.txt"; do

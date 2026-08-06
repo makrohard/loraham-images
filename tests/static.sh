@@ -4,7 +4,7 @@ set -o errexit -o nounset -o pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 echo "== bash -n (syntax) =="
-scripts=(builder/*.sh overlay/usr/local/sbin/lhpc-firstboot overlay/usr/local/sbin/lhpc-growroot tests/*.sh)
+scripts=(builder/*.sh overlay/usr/local/sbin/lhpc-* tests/*.sh)
 for f in "${scripts[@]}"; do bash -n "$f" && echo "  ok $f"; done
 
 echo "== shellcheck =="
@@ -46,6 +46,22 @@ if grep -nE '^[A-Z_]+=[^#]* #' README.md; then
   echo "  a KEY=VALUE line in README has an inline comment — users copy it verbatim into lhpc-config.txt"; exit 1
 fi
 echo "  ok"
+
+bash tests/detach.sh || exit 1
+
+echo "== device-suffix derivation is identical in both files =="
+# lhpc-<sfx> (firstboot) and lhpc-recovery-<sfx> must name the SAME device. These two SUFFIX=
+# lines are duplicated verbatim on purpose — a shared library for one line is worse — but they
+# diverged once already (different source, different filter, 5 chars vs 4, uppercase dropped)
+# and that is the string a user reads off a broken box. Compare them instead of trusting care.
+a="$(grep -m1 '^SUFFIX=' overlay/usr/local/sbin/lhpc-firstboot)"
+b="$(grep -m1 '^SUFFIX=' overlay/usr/local/sbin/lhpc-recovery-ap)"
+[ -n "$a" ] && [ "$a" = "$b" ] || { echo "  SUFFIX= derivation differs between firstboot and recovery-ap:"; echo "    firstboot:   $a"; echo "    recovery-ap: $b"; exit 1; }
+echo "  ok: both derive the suffix identically"
+
+bash tests/resume.sh || exit 1
+
+bash tests/recovery-ap.sh || exit 1
 
 echo "== real lhpc-config.txt parser test (valid / misspelled / invalid) =="
 bash tests/parser.sh | sed 's/^/  /'

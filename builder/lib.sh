@@ -99,13 +99,40 @@ mount_image() {
 }
 
 # Detach explicitly (in addition to the EXIT trap) so a phase can re-attach cleanly.
+# STRICT phase-boundary detach. Every call site is followed by something destructive on the
+# SAME backing file — shrink.sh runs sfdisk over the partition table and then truncates the
+# raw image; gate-a2 fsck/resize2fs's it. The old version ran under `set +e`, ignored a failed
+# umount or `losetup -d`, and cleared the tracking variables anyway, so a busy unmount let the
+# build re-attach a SECOND loop device and rewrite a filesystem that was still mounted through
+# the first. Corruption there is timing-dependent and would surface as a bad published image,
+# not as a build failure. So: sync, unmount child before parent, verify neither path is still a
+# mountpoint, verify the loop device is really gone, and only then clear state.
+# The EXIT trap keeps using cleanup_image(), which stays best-effort on purpose.
 detach_image() {
-  set +e
-  [ -n "$MNT_BOOT" ] && mountpoint -q "$MNT_BOOT" && umount -R "$MNT_BOOT"
-  [ -n "$MNT_ROOT" ] && mountpoint -q "$MNT_ROOT" && umount -R "$MNT_ROOT"
-  [ -n "$LOOPDEV" ] && losetup -d "$LOOPDEV"
+  sync
+  if [ -n "$MNT_BOOT" ] && mountpoint -q "$MNT_BOOT"; then
+    umount -R "$MNT_BOOT" || die "detach: umount failed for boot mount $MNT_BOOT"
+  fi
+  if [ -n "$MNT_ROOT" ] && mountpoint -q "$MNT_ROOT"; then
+    umount -R "$MNT_ROOT" || die "detach: umount failed for root mount $MNT_ROOT"
+  fi
+  [ -n "$MNT_BOOT" ] && mountpoint -q "$MNT_BOOT" && die "detach: $MNT_BOOT still a mountpoint after umount"
+  [ -n "$MNT_ROOT" ] && mountpoint -q "$MNT_ROOT" && die "detach: $MNT_ROOT still a mountpoint after umount"
+  if [ -n "$LOOPDEV" ]; then
+    losetup -d "$LOOPDEV" || die "detach: losetup -d failed for $LOOPDEV"
+    # `losetup -d` only REQUESTS the detach: the kernel frees the device once the last
+    # reference drops, and udev re-probes a loop device after every sfdisk/resize2fs, so the
+    # node routinely lingers for a moment. Asserting instantly turned that ordinary delay into
+    # a failed build (v0.1.6 lite, gate-a2, ~1s after a resize2fs). Wait for the detach to
+    # finish; one still attached after the wait is the genuinely-busy case this check is for.
+    for _ in $(seq 1 50); do
+      losetup "$LOOPDEV" >/dev/null 2>&1 || break
+      sleep 0.2
+    done
+    losetup "$LOOPDEV" >/dev/null 2>&1 \
+      && die "detach: $LOOPDEV still attached 10s after losetup -d"
+  fi
   MNT_BOOT=""; MNT_ROOT=""; LOOPDEV=""
-  set -e
 }
 
 # ---- arch assertions (§corr-net) ------------------------------------------

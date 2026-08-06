@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
-# Resolve the current full SHA of makrohard/loraham-pi-control main at job start, and
-# later assert the installed checkout matches (or matches a freshly-resolved main if
-# main advanced mid-job). Never resets/moves the checkout to force a match.
+# Resolve the current full SHA of makrohard/loraham-pi-control main at job start (build.sh calls
+# this once). The installed-vs-resolved MATCH is asserted INLINE in provision.sh — not here —
+# because provision runs in the container where this host script is never staged (note is there).
 #
-# Usage:
-#   resolve-lhpc.sh resolve                 -> prints the current main full SHA
-#   resolve-lhpc.sh assert <installed> <resolved>
-#       exit 0 if installed == resolved, OR installed == a freshly-resolved current main;
-#       else fail (unexplained mismatch).
+# Usage: resolve-lhpc.sh resolve   -> prints the current main full SHA
 # shellcheck shell=bash
 set -o errexit -o nounset -o pipefail
 _here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,27 +21,10 @@ resolve() {
   printf '%s\n' "$sha"
 }
 
-assert() {
-  local installed="$1" resolved="$2" fresh
-  [ -n "$installed" ] || die "installed SHA empty — install path did not clone?"
-  if [ "$installed" = "$resolved" ]; then
-    log "LHPC SHA match: $installed"
-    return 0
-  fi
-  warn "installed ($installed) != job-start resolved ($resolved); checking if main advanced mid-job"
-  fresh="$(resolve)"
-  if [ "$installed" = "$fresh" ]; then
-    log "LHPC main advanced during the job; installed matches current main $fresh"
-    return 0
-  fi
-  die "unexplained LHPC SHA mismatch: installed=$installed job-start=$resolved current-main=$fresh"
-}
-
 main() {
   case "${1:-}" in
     resolve) resolve ;;
-    assert)  shift; assert "${1:?installed}" "${2:?resolved}" ;;
-    *) die "usage: resolve-lhpc.sh resolve | assert <installed> <resolved>" ;;
+    *) die "usage: resolve-lhpc.sh resolve" ;;
   esac
 }
 main "$@"

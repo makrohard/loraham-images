@@ -52,6 +52,25 @@ printf '%s,%s\n' "$p2_start" "$new_size_sectors" | sfdisk --no-reread -f -N 2 "$
 # re-attach, re-read, fsck again
 attach_loop "$IMG"
 fsck_checked "${LOOPDEV}p2"
+
+# Grow ext4 into the enlarged partition. Without this the MARGIN_MB is unallocated PARTITION
+# space and the shipped filesystem stays at its resize2fs -M minimum — i.e. essentially zero
+# writable headroom. That breaks the recovery path, which runs BEFORE lhpc-growroot and has to
+# write ssh host keys and a NetworkManager AP profile on a box whose expansion just failed; the
+# release fs hitting 100% is how firstboot died with ENOSPC once already.
+resize2fs "${LOOPDEV}p2"
+# newly added blocks were never zeroed, so re-zero for the .xz tail, then re-check.
+command -v zerofree >/dev/null 2>&1 && zerofree "${LOOPDEV}p2" || warn "zerofree unavailable — skipping"
+fsck_checked "${LOOPDEV}p2"
+
+# Fail closed unless the SHIPPED filesystem really has room for recovery to work.
+f_blocks="$(dumpe2fs -h "${LOOPDEV}p2" 2>/dev/null | awk -F: '/Free blocks/{gsub(/ /,"",$2);print $2}')"
+f_bsize="$(dumpe2fs -h "${LOOPDEV}p2" 2>/dev/null | awk -F: '/Block size/{gsub(/ /,"",$2);print $2}')"
+[ -n "$f_blocks" ] && [ -n "$f_bsize" ] || die "could not read post-grow fs geometry"
+free_mb=$(( f_blocks * f_bsize / 1024 / 1024 ))
+log "shipped filesystem free space: ${free_mb} MiB"
+[ "$free_mb" -ge 48 ] \
+  || die "only ${free_mb} MiB free in the shipped filesystem — recovery (host keys + AP profile) runs before expansion and needs real headroom"
 # revalidate fs type
 blkid_type="$(blkid -o value -s TYPE "${LOOPDEV}p2" || true)"
 [ "$blkid_type" = "ext4" ] || die "p2 fs type is '$blkid_type', expected ext4 after shrink"

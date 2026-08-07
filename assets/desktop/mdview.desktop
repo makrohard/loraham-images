@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Markdown Viewer
+Comment=Render Markdown and open it in the browser
+Exec=mdview %f
+Icon=text-x-generic
+Terminal=false
+NoDisplay=false
+Categories=Utility;TextTools;
+MimeType=text/markdown;text/x-markdown;

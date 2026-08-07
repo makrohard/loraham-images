@@ -28,7 +28,9 @@ Join it with the same key **@AP_PSK@** (the recovery network always uses the fac
   from this access point only, with no password, like the console.
 - The managed firewall is **already applied**: the stacks' own ports are blocked, so those proxies
   are the only way in. SSH stays reachable everywhere.
-- Timezone **@TIMEZONE@**, Wi-Fi country **@WIFI_COUNTRY@** — change either in `lhpc-config.txt`.
+- Regional defaults are **German**: timezone **@TIMEZONE@**, Wi-Fi country **@WIFI_COUNTRY@**,
+  keyboard **@KEYBOARD@** (`Alt+Shift` switches layout). Change any of them in `lhpc-config.txt`.
+  Wi-Fi country is a regulatory setting — set your own before operating the radio.
   A Pi has no battery clock, so an offline box keeps the time it last knew.
 - **The stacks are already installed and built** — except the three parts that need a desktop
   (Voice, MeshCore's Node Manager GUI, Reticulum's Sideband), which this headless image skips on

@@ -78,6 +78,7 @@ PASSWORD=choose-a-password
 AP_PSK=choose-a-wifi-key
 WIFI_COUNTRY=DE
 TIMEZONE=Europe/Berlin
+KEYBOARD=de,us
 CALL=N0CALL
 ```
 
@@ -88,7 +89,9 @@ If first boot fails partway, fix the file and reboot — the Pi notices the chan
 affected steps, so your correction actually applies.
 
 `AP_PSK` must be 8–63 characters, `WIFI_COUNTRY` your two-letter code (e.g. `DE`, `US`, `GB`) and
-`TIMEZONE` a zone name from `/usr/share/zoneinfo` (e.g. `America/New_York`). An
+`TIMEZONE` a zone name from `/usr/share/zoneinfo` (e.g. `America/New_York`) and `KEYBOARD` one to
+four xkb layout names, first is primary (e.g. `us`, or `de,us` for German with English on
+`Alt+Shift`). An
 invalid file is rejected on first boot, with the reason written to `lhpc-config-error.txt` on this
 same drive.
 </details>
@@ -99,7 +102,7 @@ same drive.
 |---|---|---|
 | login | `lhpc` / `lhpc` | `lhpc` / `lhpc` |
 | hostname | `lhpc-XXXX` | `lhpc-XXXX` |
-| timezone · country | `Europe/Berlin` · `DE` | `Europe/Berlin` · `DE` |
+| region | `Europe/Berlin` · `DE` · keyboard `de,us` | `Europe/Berlin` · `DE` · keyboard `de,us` |
 | Wi-Fi | **its own AP** `lhpc-XXXX` / `lorahampi` at `10.42.0.1` | **joins yours** (Wi-Fi menu or Ethernet) |
 | Web GUI | `https://10.42.0.1:8443` — AP only, no password | `https://127.0.0.1:8443` — on the Pi only |
 | MeshCom UI | `10.42.0.1:8444` — AP only | `127.0.0.1:8444` — on the Pi only |
@@ -112,6 +115,11 @@ same drive.
 
 `XXXX` is a per-device suffix. If you see **`lhpc-recovery-XXXX`** instead, first boot did not finish —
 join it (key `lorahampi`, always the factory one) and see Troubleshooting.
+
+> **The regional defaults are German** — timezone `Europe/Berlin`, Wi-Fi country `DE`, keyboard
+> `de,us` (German, with English on `Alt+Shift`). Set `TIMEZONE`, `WIFI_COUNTRY` and `KEYBOARD` in
+> `lhpc-config.txt` before the first boot to change them. **`WIFI_COUNTRY` is a regulatory setting:
+> outside Germany you must set your own before operating the radio.**
 
 ## 5 · Zero to hero
 
@@ -243,7 +251,7 @@ that box. Skipping this only means you keep accepting the warning.
 - user **`lhpc`** / password **`lhpc`**
 - AP **`lhpc-XXXX`** / key **`lorahampi`**
 - recovery AP **`lhpc-recovery-XXXX`** / key **`lorahampi`** (factory key, always)
-- Wi-Fi country **`DE`** · timezone **`Europe/Berlin`**
+- Wi-Fi country **`DE`** · timezone **`Europe/Berlin`** · keyboard **`de,us`** (German; `Alt+Shift` for English)
 - `XXXX` is a per-device suffix
 
 **More docs** — LHPC upstream: [README](https://github.com/makrohard/loraham-pi-control#readme) ·

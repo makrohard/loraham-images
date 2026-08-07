@@ -221,6 +221,120 @@ as_op "$LHPC_BIN" doctor            > /var/log/lhpc-doctor.log 2>&1 || true
 as_op "$LHPC_BIN" status --versions > /var/log/lhpc-versions.log 2>&1 || die "lhpc status --versions failed"
 [ -s /var/log/lhpc-versions.log ] || die "component report (status --versions) is empty"
 
+# ---- 9b. Desktop conveniences (Desktop variant only) -----------------------
+# None of this exists on Lite: no lightdm, no pcmanfm, no chromium. The static assets (mdview and
+# its desktop entry) were already installed root-owned by build.sh; everything here either needs
+# apt or writes into the operator's home, neither of which build.sh can do.
+#
+# Set KEY=VALUE inside [SECTION] of a desktop-style ini file, creating file and section when
+# absent. Convergent: an existing key is REPLACED, so re-running provisioning never doubles it.
+ini_set(){ # $1 file ; $2 section ; $3 key ; $4 value
+  local f="$1" sec="$2" k="$3" v="$4"
+  mkdir -p "$(dirname "$f")"
+  [ -f "$f" ] || printf '[%s]\n' "$sec" > "$f"
+  grep -q "^\[$sec\]" "$f" || printf '\n[%s]\n' "$sec" >> "$f"
+  # Probe and rewrite WITHIN the section only. A file-wide `grep ^key=` would match the same key
+  # under a different heading — mimeapps.list carries text/* keys under both [Default Applications]
+  # and [Added Associations] — and would then edit that unrelated line while the section we were
+  # asked about silently never gets the key. The range runs from the heading to the next one (or
+  # EOF for a trailing section); a `[...]` line can never match `^key=`, so the end address is safe.
+  # Keys here are mimetypes, so they contain `/` — which would terminate a sed ADDRESS regex
+  # (`/^text/markdown=/` is a syntax error). Escape it for address use; the s/// below already
+  # uses `|` as its delimiter and needs no escaping.
+  local ka="${k//\//\\/}"
+  if sed -n "/^\[$sec\]/,/^\[/{/^$ka=/p}" "$f" | grep -q .; then
+    sed -i "/^\[$sec\]/,/^\[/{s|^$k=.*|$k=$v|}" "$f"
+  else
+    sed -i "/^\[$sec\]/a $k=$v" "$f"
+  fi
+}
+if [ "$VARIANT" = "desktop" ]; then
+  say "desktop conveniences: markdown viewer, launchers, CA-trust tooling"
+  # python3-markdown is all mdview needs; libnss3-tools provides certutil for the first-boot
+  # Chromium CA-trust step. --no-install-recommends: the recommends are not wanted for either.
+  apt-get install -y --no-install-recommends python3-markdown libnss3-tools \
+    || die "desktop packages (python3-markdown libnss3-tools) failed to install"
+  command -v update-desktop-database >/dev/null 2>&1 && \
+    update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+
+  # Launcher clicks otherwise raise an Execute/Open/Cancel chooser on every .desktop file.
+  # `quick_exec` is a LIBFM option, and the operator's own libfm.conf is what the session reads —
+  # a system-wide default under /etc/xdg is silently overridden by it, which is exactly how an
+  # earlier attempt in pcmanfm.conf (a file libfm does not read this key from) achieved nothing.
+  # One supported operator account, so the effective config is the only config worth setting.
+  ini_set "/home/$OPERATOR_USER/.config/libfm/libfm.conf" config quick_exec 1
+
+  # Desktop background. The per-monitor user file is named for the connector
+  # (desktop-items-HDMI-A-1.conf) and cannot be known at build time, so the system-wide default is
+  # the only deterministic place — MEASURED: with no user file present, this is what pcmanfm uses.
+  WP=/etc/xdg/pcmanfm/default/desktop-items-0.conf
+  WALL=/usr/share/rpd-wallpaper/fjord.jpg
+  # Check the IMAGE, not just the config line: a grep that only confirms the string we just wrote
+  # proves nothing about whether the desktop can render it, and a missing file yields a blank
+  # background on a build that reported success. Both misses are logged rather than fatal —
+  # cosmetics must not fail an image build.
+  if [ ! -f "$WALL" ]; then
+    say "wallpaper SKIPPED: $WALL not present in this base"
+  elif [ ! -f "$WP" ]; then
+    say "wallpaper SKIPPED: $WP not present in this base (pcmanfm defaults moved?)"
+  else
+    sed -i "s#^wallpaper=.*#wallpaper=$WALL#" "$WP"
+    grep -q "^wallpaper=$WALL\$" "$WP" || die "wallpaper line not applied to $WP"
+    say "wallpaper default set to $WALL"
+  fi
+
+  # Desktop launchers. The README target is the SELF-HOSTED source LHPC maintains and self-update
+  # keeps current — not the build-time clone, which is removed below and would go stale anyway.
+  # INSTALLED_ROOT is the real checkout provisioning already located (and took the provenance SHA
+  # from) — reuse it rather than restating the layout, so the launcher cannot drift from it.
+  README="$INSTALLED_ROOT/README.md"
+  [ -f "$README" ] || die "self-hosted README not found at $README — refusing to ship a launcher that opens nothing"
+  DESK="/home/$OPERATOR_USER/Desktop"; mkdir -p "$DESK"
+  cat > "$DESK/lhpc-webgui.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=LHPC WebGUI
+Comment=LoRaHAM Pi Control web console
+Exec=xdg-open https://127.0.0.1:${CONSOLE_PORT:-8443}
+Icon=network-server
+Terminal=false
+Categories=Network;
+EOF
+  cat > "$DESK/lhpc-readme.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=README
+Comment=LoRaHAM Pi Control README
+Exec=mdview $README
+Icon=text-x-generic
+Terminal=false
+Categories=Documentation;
+EOF
+  chmod 0755 "$DESK"/lhpc-webgui.desktop "$DESK"/lhpc-readme.desktop
+
+  # Open .md files with mdview.
+  ini_set "/home/$OPERATOR_USER/.config/mimeapps.list" "Default Applications" text/markdown   mdview.desktop
+  ini_set "/home/$OPERATOR_USER/.config/mimeapps.list" "Default Applications" text/x-markdown mdview.desktop
+
+  # Own exactly what this block created — ini_set/mkdir ran as root. A blanket `chown -R` over
+  # the whole of .config would also sweep up lhpc's user units, which is breadth with no purpose.
+  chown -R "$OPERATOR_USER:$OPERATOR_USER" "$DESK" "/home/$OPERATOR_USER/.config/libfm"
+  chown "$OPERATOR_USER:$OPERATOR_USER" "/home/$OPERATOR_USER/.config" \
+                                        "/home/$OPERATOR_USER/.config/mimeapps.list"
+  say "desktop conveniences installed"
+fi
+
+# ---- 9c. drop the build-time LHPC clone ------------------------------------
+# $CLONE existed only to run bootstrap-deps.sh and install.sh, both of which have succeeded by now
+# (this script dies otherwise). Nothing reads it afterwards — LHPC self-hosts its own source under
+# the runtime root, and every managed user unit's WorkingDirectory points there. Left in place it
+# is ~8 MB of image plus a SECOND copy of the sources that goes stale the first time self-update
+# runs, which is a trap for anyone who opens it expecting the installed version.
+if [ -d "$CLONE" ]; then
+  say "removing build-time clone $CLONE (LHPC self-hosts its source under the runtime root)"
+  rm -rf "$CLONE"
+fi
+
 # ---- 10. remove build-time holds; fail closed on a broken dpkg state -------
 # The kernel/boot holds were only to survive in-container initramfs generation. Remove them so
 # the released device can update those packages (the operator's `apt full-upgrade` must not be

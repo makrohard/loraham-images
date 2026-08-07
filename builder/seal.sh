@@ -4,7 +4,7 @@
 # and keeps ONLY the documented public onboarding defaults. Regeneration happens at first
 # boot (fresh device PKI + host keys). Fails closed.
 #
-# Usage: seal.sh <root> <operator_user> <operator_password>
+# Usage: seal.sh <root> <operator_user> <operator_password> <overlay_dir>
 # shellcheck shell=bash
 set -o errexit -o nounset -o pipefail
 _here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,6 +12,8 @@ _here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$_here/lib.sh"
 
 ROOT="${1:?root}"; OP="${2:?operator}"; OP_PW="${3:?password}"
+# Source tree the ownership assertion derives its path list from (see assertion (h)).
+OVERLAY="${4:?overlay dir}"
 RUNTIME="$ROOT/home/$OP/loraham-pi-control"
 
 group_begin "seal: strip build-time PKI / secrets / host identity"
@@ -169,6 +171,45 @@ if [ -L "$ROOT/etc/systemd/system/sysinit.target.wants/rpi-resize.service" ]; th
   die "seal failed: rpi-resize.service is still armed alongside lhpc-growroot — two concurrent resizers"
 fi
 log "assert OK: firstboot Requires growroot; rpi-resize not armed (single expansion owner)"
+
+# (h) every object the overlay maps into the image is owned by root.
+#
+# DERIVED from the source tree, never a hand-kept list — unlike the executable check above, which
+# names its four programs. A GitHub-hosted runner checks the repo out as uid/gid 1001, and inside
+# the image uid 1001 is the OPERATOR, so a plain `cp -a` silently handed /, /etc and /usr to the
+# account that ships with a documented public password. build.sh copies with
+# --no-preserve=ownership,mode; this is the gate that keeps it that way, and it grows by itself
+# when the overlay does.
+#
+# Checked WITHOUT dereferencing: `find` does not follow symlinks unless given -L, and `stat` would
+# resolve them — a symlink's own ownership is what we are asserting. %U/%G are the NUMERIC ids
+# (%u/%g would be the names); comparing numbers means a uid with no passwd entry cannot slip
+# through, and no name lookup is involved at all.
+if [ -d "$OVERLAY" ]; then
+  bad=()
+  while IFS= read -r -d '' rel; do
+    dest="$ROOT/$rel"
+    # Every source object is copied unconditionally and nothing removes one before the seal, so an
+    # absent destination is a broken build, not a case to skip. For lhpc-recovery.service and
+    # lhpc-recovery-ap.service this is the ONLY presence check in the file: the armed-symlink
+    # assertions below test the .wants LINK, and their `grep ... && die` companions pass quietly
+    # when the unit file they read is missing.
+    [ -e "$dest" ] || [ -L "$dest" ] \
+      || die "seal failed: overlay object /$rel is missing from the image"
+    read -r u g < <(find "$dest" -maxdepth 0 -printf '%U %G\n')
+    [ "$u" = 0 ] && [ "$g" = 0 ] || bad+=("/$rel ($u:$g)")
+  done < <(find "$OVERLAY" -mindepth 1 -printf '%P\0')
+  # ...and the destination root itself, which `cp -a src/. dst/` also stamps.
+  read -r u g < <(find "$ROOT" -maxdepth 0 -printf '%U %G\n')
+  [ "$u" = 0 ] && [ "$g" = 0 ] || bad+=("/ ($u:$g)")
+  if [ "${#bad[@]}" -gt 0 ]; then
+    printf 'overlay objects not owned by root:\n'; printf '  %s\n' "${bad[@]}"
+    die "seal failed: overlay-mapped path(s) not owned by root — the operator account could replace them"
+  fi
+  log "assert OK: every overlay-mapped object (and /) is root-owned"
+else
+  die "seal failed: overlay dir '$OVERLAY' is not a directory — the ownership assertion cannot run"
+fi
 
 group_end
 log "SEAL OK"

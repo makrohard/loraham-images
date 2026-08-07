@@ -20,6 +20,18 @@ else
   echo "  shellcheck not installed — skipped"
 fi
 
+echo "== assets: mdview parses as python3 =="
+# Shipped verbatim to /usr/local/bin/mdview on Desktop. It is the one non-shell program in the
+# repo, so bash -n above does not cover it; a syntax error would only surface when a user clicks
+# the README icon on a finished image.
+# Unconditional: build.sh installs this file on every Desktop build, so its absence is a defect,
+# not a reason for the gate to pass quietly.
+[ -f assets/desktop/mdview ] || { echo "  assets/desktop/mdview is MISSING (build.sh installs it)"; exit 1; }
+python3 -c 'import ast,sys; ast.parse(open(sys.argv[1]).read())' assets/desktop/mdview \
+  && echo "  ok assets/desktop/mdview" || { echo "  mdview FAILED to parse"; exit 1; }
+head -1 assets/desktop/mdview | grep -q '^#!/usr/bin/env python3$' \
+  || { echo "  mdview missing python3 shebang"; exit 1; }
+
 echo "== config sanity =="
 for f in config/onboarding-defaults.env config/lite.env config/desktop.env; do
   grep -qE '^[A-Z_]+=' "$f" || { echo "  BAD $f"; exit 1; }
@@ -58,6 +70,17 @@ a="$(grep -m1 '^SUFFIX=' overlay/usr/local/sbin/lhpc-firstboot)"
 b="$(grep -m1 '^SUFFIX=' overlay/usr/local/sbin/lhpc-recovery-ap)"
 [ -n "$a" ] && [ "$a" = "$b" ] || { echo "  SUFFIX= derivation differs between firstboot and recovery-ap:"; echo "    firstboot:   $a"; echo "    recovery-ap: $b"; exit 1; }
 echo "  ok: both derive the suffix identically"
+
+echo "== firstboot: hostname is set BEFORE the device PKI is generated =="
+# LHPC bakes the hostname into its TLS SANs when it first generates its PKI, so a rename
+# afterwards leaves the certificate permanently stale (repairing it needs a destructive CA
+# re-init). The order already holds; this keeps it that way — the two steps are ~15 lines apart
+# in a 600-line file and nothing else expresses the dependency.
+_h="$(grep -n '^run_step hostname'   overlay/usr/local/sbin/lhpc-firstboot | cut -d: -f1)"
+_p="$(grep -n '^run_step device_pki' overlay/usr/local/sbin/lhpc-firstboot | cut -d: -f1)"
+{ [ -n "$_h" ] && [ -n "$_p" ] && [ "$_h" -lt "$_p" ]; } \
+  || { echo "  hostname step (line ${_h:-?}) must run BEFORE device_pki (line ${_p:-?})"; exit 1; }
+echo "  ok: hostname ($_h) precedes device_pki ($_p)"
 
 bash tests/resume.sh || exit 1
 

@@ -73,8 +73,33 @@ mount_image "$ROOT"
 assert_guest_arm64 "$ROOT"
 
 # overlay (firstboot + growroot programs + units + generated boot README later)
-cp -a "$_repo/overlay/." "$ROOT/"
-chmod 0755 "$ROOT/usr/local/sbin/lhpc-firstboot" "$ROOT/usr/local/sbin/lhpc-growroot"
+# TWO --no-preserve attributes, for TWO reasons. Do not "restore" either:
+#   ownership — a GitHub-hosted runner checks the repo out as uid/gid 1001, and inside the image
+#     uid 1001 is the OPERATOR (allocated 1001 because the base's `pi` still held 1000 when
+#     provision.sh created it). `cp -a` handed /, /etc, /etc/systemd{,/system}, /usr/local{,/sbin}
+#     — every directory this copy traverses — to the operator account, who could then replace
+#     anything in /etc without sudo. seal.sh asserts the result; see its ownership block.
+#   mode — the same mechanism one attribute over: the source directory's mode is stamped onto the
+#     EXISTING /, /etc and /usr (measured: a 0700 /etc came back 0755). Dropping it leaves every
+#     existing directory alone, which is the point.
+cp -a --no-preserve=ownership,mode "$_repo/overlay/." "$ROOT/"
+# ...but dropping mode also means every copied FILE lands 0644 (cp uses 0666 & ~umask, NOT the
+# source mode), so the programs must have their executable bit put back. Derived from the source
+# tree, not a list of names: a fifth program must not ship non-executable. seal.sh asserts the
+# four it knows about, and would fail the build if this ever stopped working.
+while IFS= read -r -d '' _rel; do
+  chmod 0755 "$ROOT/$_rel"
+done < <(find "$_repo/overlay" -mindepth 1 -type f -perm -u+x -printf '%P\0')
+
+# Desktop-only static assets. Installed EXPLICITLY root:root rather than copied into a second
+# overlay tree: `install` has no preserve semantics to get wrong, which is the whole failure mode
+# the overlay copy above exists to avoid. They live here (not provision.sh) because provision.sh
+# is staged INTO the image as a single file and runs inside nspawn, where $_repo does not exist.
+if [ "$VARIANT" = "desktop" ]; then
+  install -D -m0755 -o root -g root "$_repo/assets/desktop/mdview" "$ROOT/usr/local/bin/mdview"
+  install -D -m0644 -o root -g root "$_repo/assets/desktop/mdview.desktop" \
+          "$ROOT/usr/share/applications/mdview.desktop"
+fi
 
 # baked config for firstboot + provision
 install -d -m0755 "$ROOT/etc/lhpc"
@@ -108,6 +133,7 @@ render_doc(){
       -e "s#@OPERATOR_PASSWORD@#${OPERATOR_PASSWORD}#g" \
       -e "s#@WIFI_COUNTRY@#${WIFI_COUNTRY:-DE}#g" \
       -e "s#@TIMEZONE@#${TIMEZONE:-Europe/Berlin}#g" \
+      -e "s#@KEYBOARD@#${KEYBOARD:-gb}#g" \
       "$src"
 }
 render_doc > "$ROOT/boot/firmware/README.txt"
@@ -261,7 +287,7 @@ rm -f "$ROOT/root/.bash_history" "$ROOT/home/$OPERATOR_USER/.bash_history" 2>/de
 rm -rf "$ROOT/var/lib/lhpc/firstboot.d" "$ROOT/var/lib/lhpc/.firstboot-done" \
        "$ROOT/var/lib/lhpc/.firstboot-finalizing" "$ROOT/var/lib/lhpc/.provisioned"
 
-"$_here/seal.sh" "$ROOT" "$OPERATOR_USER" "$OPERATOR_PASSWORD"
+"$_here/seal.sh" "$ROOT" "$OPERATOR_USER" "$OPERATOR_PASSWORD" "$_repo/overlay"
 detach_image
 
 # ---- shrink ----------------------------------------------------------------

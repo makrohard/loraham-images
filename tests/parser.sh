@@ -8,7 +8,13 @@
 set -o pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 FB=overlay/usr/local/sbin/lhpc-firstboot
-fn="$(mktemp)"; trap 'rm -f "$fn"' EXIT
+fn="$(mktemp)"
+# Fixture xkb symbols dir: the KEYBOARD case checks layout names against $XKB_SYMBOLS_DIR, and a
+# bare CI runner has no xkb-data. Pointing it here keeps the test hermetic AND still exercises the
+# real "does this layout exist" branch rather than stubbing it out.
+xkb="$(mktemp -d)"; : > "$xkb/de"; : > "$xkb/us"; : > "$xkb/gb"
+export XKB_SYMBOLS_DIR="$xkb"
+trap 'rm -rf "$fn" "$xkb"' EXIT
 # extract the parse_bootcfg() function body (up to its closing brace at column 0)
 awk '/^parse_bootcfg\(\)/{p=1} p{print} /^}/{if(p) exit}' "$FB" > "$fn"
 grep -q 'parse_bootcfg' "$fn" || { echo "could not extract parse_bootcfg"; exit 1; }
@@ -47,5 +53,14 @@ expect "absolute timezone rejected"  "REJECT: TIMEZONE must be a zone name" "$(r
 expect "short PSK rejected"          "REJECT: AP_PSK must be 8" "$(run 'AP_PSK=short')"
 expect "bad hostname rejected"       "REJECT: HOSTNAME may contain" "$(run 'HOSTNAME=bad host')"
 expect "malformed line rejected"     "REJECT: malformed line" "$(run 'this is not valid')"
+expect "single layout accepted"      "KEYBOARD=us"     "$(run 'KEYBOARD=us')"
+expect "dual layout accepted"        "KEYBOARD=de,us"  "$(run 'KEYBOARD=de,us')"
+expect "unknown layout rejected"     "REJECT: KEYBOARD layout 'xx' is not a known xkb layout" "$(run 'KEYBOARD=xx')"
+expect "unknown 2nd layout rejected" "REJECT: KEYBOARD layout 'zz' is not a known xkb layout" "$(run 'KEYBOARD=de,zz')"
+expect "bad chars rejected"          "REJECT: KEYBOARD must be comma-separated" "$(run 'KEYBOARD=de us')"
+expect "empty entry rejected"        "REJECT: KEYBOARD has an empty layout entry" "$(run 'KEYBOARD=de,,us')"
+expect "trailing comma rejected"     "REJECT: KEYBOARD has an empty layout entry" "$(run 'KEYBOARD=de,')"
+expect "empty KEYBOARD rejected"     "REJECT: KEYBOARD must be comma-separated" "$(run 'KEYBOARD=')"
+expect "too many layouts rejected"   "REJECT: KEYBOARD accepts at most 4 layouts" "$(run 'KEYBOARD=de,us,gb,de,us')"
 
 [ "$fails" -eq 0 ] && echo "PARSER TESTS PASSED" || { echo "PARSER TESTS FAILED"; exit 1; }

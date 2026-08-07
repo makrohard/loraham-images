@@ -14,6 +14,9 @@ FINALIZING=/var/lib/lhpc/.firstboot-finalizing
 BOOTCFG=/boot/firmware/lhpc-config.txt
 DEFAULTS=/etc/lhpc/onboarding-defaults.env
 IMGENV=/etc/lhpc/image.env
+# Where KEYBOARD layout names are validated against. Overridable so tests/parser.sh can point it
+# at a fixture directory — a bare CI runner has no xkb-data installed.
+XKB_SYMBOLS_DIR="${XKB_SYMBOLS_DIR:-/usr/share/X11/xkb/symbols}"
 CI="${LHPC_FIRSTBOOT_CI:-0}"
 
 mkdir -p "$STATE" /var/lib/lhpc
@@ -49,7 +52,7 @@ cfg_reject(){
 }
 parse_bootcfg(){
   [ -f "$BOOTCFG" ] || return 0
-  local line k v seen="" b
+  local line k v seen="" b _l
   while IFS= read -r line || [ -n "$line" ]; do
     line="${line%$'\r'}"; line="${line#"${line%%[![:space:]]*}"}"
     case "$line" in ''|'#'*) continue;; esac
@@ -93,9 +96,27 @@ parse_bootcfg(){
         esac
         [ -f "/usr/share/zoneinfo/$v" ] || cfg_reject "TIMEZONE '$v' is not a known zone in this image (see /usr/share/zoneinfo)"
         CFG["$k"]="$v" ;;
+      KEYBOARD)
+        # XKB layout NAMES, comma-separated, first is primary (e.g. "de,us"). Same fail-closed
+        # shape as TIMEZONE: each name must actually exist in this image's xkb data, so a typo is
+        # refused rather than silently leaving the box on the base 'gb'.
+        case "$v" in
+          ''|*[![:alnum:]_,-]*) cfg_reject "KEYBOARD must be comma-separated xkb layout names like 'de,us', got '$v'" ;;
+          *,,*|,*|*,) cfg_reject "KEYBOARD has an empty layout entry: '$v'" ;;
+        esac
+        b=0
+        for _l in ${v//,/ }; do
+          b=$((b+1))
+          [ -f "$XKB_SYMBOLS_DIR/$_l" ] \
+            || cfg_reject "KEYBOARD layout '$_l' is not a known xkb layout in this image (see $XKB_SYMBOLS_DIR)"
+        done
+        # More than a handful is a typo, not an intent — and every extra layout is one more
+        # Alt+Shift press to cycle past.
+        [ "$b" -le 4 ] || cfg_reject "KEYBOARD accepts at most 4 layouts, got $b"
+        CFG["$k"]="$v" ;;
       # Any other key is a typo (e.g. PASSWROD) — REFUSE so the user isn't left on the public
       # defaults believing they changed something.
-      *) cfg_reject "unknown key '$k' (typo?) — supported: HOSTNAME PASSWORD AP_SSID AP_PSK WIFI_COUNTRY TIMEZONE EXPOSE_SCOPE CALL" ;;
+      *) cfg_reject "unknown key '$k' (typo?) — supported: HOSTNAME PASSWORD AP_SSID AP_PSK WIFI_COUNTRY TIMEZONE KEYBOARD EXPOSE_SCOPE CALL" ;;
     esac
   done < "$BOOTCFG"
 }
@@ -206,6 +227,7 @@ AP_SSID_FINAL="$(ov AP_SSID "${AP_SSID_BASE:-lhpc}-$SUFFIX")"
 AP_PSK_FINAL="$(ov AP_PSK "${AP_PSK:-lorahampi}")"
 COUNTRY="$(ov WIFI_COUNTRY "${WIFI_COUNTRY:-DE}")"
 TZ_FINAL="$(ov TIMEZONE "${TIMEZONE:-Europe/Berlin}")"
+KB_FINAL="$(ov KEYBOARD "${KEYBOARD:-gb}")"
 CALL_FINAL="$(ov CALL "")"
 EXPOSE="$(ov EXPOSE_SCOPE "${EXPOSE_SCOPE:-none}")"
 AP_ADDR="${AP_ADDR:-10.42.0.1}"; AP_PREFIX="${AP_PREFIX:-24}"; AP_CIDR="${AP_CIDR:-10.42.0.0/24}"
@@ -222,6 +244,77 @@ step_timezone(){
   printf '%s\n' "$TZ_FINAL" > /etc/timezone
   [ "$(readlink -f /etc/localtime)" = "$(readlink -f "/usr/share/zoneinfo/$TZ_FINAL")" ] \
     || fail "timezone not applied (/etc/localtime does not point at $TZ_FINAL)"
+}
+# Set-or-replace KEY=VALUE in a plain `KEY=VALUE`-per-line environment file, CREATING the file
+# (and its directory) when absent. Convergent: a rerun with a different value replaces rather
+# than appends, so the config-change rerun cannot leave two conflicting lines behind.
+set_env_kv(){ # $1 file ; $2 key ; $3 value
+  local f="$1" k="$2" v="$3" d
+  d="$(dirname "$f")"; [ -d "$d" ] || mkdir -p "$d"
+  [ -f "$f" ] || : > "$f"
+  if grep -q "^$k=" "$f" 2>/dev/null; then
+    sed -i "s|^$k=.*|$k=$v|" "$f"
+  else
+    # A file whose last line has no newline would otherwise absorb our key into it
+    # (XCURSOR_SIZE=24XKB_DEFAULT_MODEL=pc105 — two settings lost, and the later appends still
+    # land correctly so every verification downstream would pass). The base ships both labwc
+    # files newline-terminated today, but it is a floating upstream artefact.
+    [ -s "$f" ] && [ "$(tail -c1 "$f" | od -An -tx1 | tr -d ' ')" != "0a" ] && printf '\n' >> "$f"
+    printf '%s=%s\n' "$k" "$v" >> "$f"
+  fi
+}
+step_keyboard(){
+  # The base ships XKBLAYOUT="gb" while the image's other defaults are German, so anyone typing
+  # on the console or the desktop gets a UK layout (y/z swapped, wrong symbols) — painful in a
+  # terminal. WIFI_COUNTRY only sets the wireless regdomain; it does not touch the keyboard.
+  #
+  # Authoritative REWRITE of all four values, not a sed-append: the config-change rerun must
+  # converge on the new KEYBOARD rather than accumulate stale options.
+  local layout="$KB_FINAL" opts="" tmp
+  # An alternate layout is only useful with a way to reach it; a single-layout box gets no
+  # meaningless toggle.
+  case "$layout" in *,*) opts="grp:alt_shift_toggle" ;; esac
+  tmp="$(mktemp)"
+  cat > "$tmp" <<EOF
+# Managed by lhpc-firstboot (KEYBOARD in lhpc-config.txt). Consult the keyboard(5) manual page.
+XKBMODEL="pc105"
+XKBLAYOUT="$layout"
+XKBVARIANT=""
+XKBOPTIONS="$opts"
+
+BACKSPACE="guess"
+EOF
+  mv "$tmp" /etc/default/keyboard
+  chmod 0644 /etc/default/keyboard
+  grep -q "^XKBLAYOUT=\"$layout\"\$" /etc/default/keyboard \
+    || fail "keyboard layout not applied (/etc/default/keyboard does not carry '$layout')"
+
+  # Apply to the RUNNING console, best effort — the file above is what the next boot reads, so a
+  # missing tool here is not a failure. --keyboard-only on purpose: a plain `setupcon --save`
+  # also rewrites console font and terminal state, which is not what we changed.
+  command -v setupcon >/dev/null 2>&1 && setupcon --save --keyboard-only --force >/dev/null 2>&1 || true
+  systemctl restart keyboard-setup.service >/dev/null 2>&1 || true
+
+  # DESKTOP: labwc never reads /etc/default/keyboard — it reads XKB_DEFAULT_* from its environment
+  # files, and the base ships 'gb' in them. Without this the console would be German while the
+  # desktop AND the login greeter stayed British. raspi-config's own update_labwc_keyboard is not
+  # used: it skips /etc/xdg/labwc/environment (the system session default, i.e. exactly the file
+  # that fixes a fresh box) and HUPs a running labwc.
+  [ "$VARIANT" = "desktop" ] || return 0
+  local f
+  # Create the operator's config dirs OWNED BY THEM up front: set_env_kv would otherwise mkdir
+  # them as root (we run as root here) and leave the operator unable to write their own settings.
+  install -d -o "$OP" -g "$OP" "/home/$OP/.config" "/home/$OP/.config/labwc"
+  for f in /etc/xdg/labwc/environment /etc/xdg/labwc-greeter/environment \
+           "/home/$OP/.config/labwc/environment"; do
+    set_env_kv "$f" XKB_DEFAULT_MODEL   "pc105"
+    set_env_kv "$f" XKB_DEFAULT_LAYOUT  "$layout"
+    set_env_kv "$f" XKB_DEFAULT_VARIANT ""
+    set_env_kv "$f" XKB_DEFAULT_OPTIONS "$opts"
+    grep -q "^XKB_DEFAULT_LAYOUT=$layout\$" "$f" \
+      || fail "keyboard layout not applied to $f"
+  done
+  chown -R "$OP:$OP" "/home/$OP/.config/labwc"
 }
 step_hostname(){
   hostnamectl set-hostname "$HOSTNAME_FINAL" 2>/dev/null || echo "$HOSTNAME_FINAL" > /etc/hostname
@@ -393,6 +486,40 @@ step_firewall(){
   rm -f "$script"
   say "firewall applied (secure-default; SSH global; stack UIs via proxy on AP only)"
 }
+step_browser_ca(){
+  # Trust this box's OWN console CA in Chromium, so https://127.0.0.1:<port> loads without an
+  # interstitial. Chromium and Firefox use NSS databases, not /etc/ssl — update-ca-certificates
+  # does nothing for them. Nothing is baked into the image: the CA is generated per box by
+  # step_device_pki, so trusting it grants no wider authority than that box already has.
+  #
+  # BEST EFFORT BY POLICY, and deliberately NOT run through run_step. This is a cosmetic
+  # convenience: it must never call fail(), because that would leave firstboot unfinished and the
+  # box looping (recovery AP up, hostname/password corrections uncommitted) over a browser
+  # nicety. Equally it must never record a permanent "done" for work it did not do — so it takes
+  # no marker at all and simply re-attempts on the next boot until first boot completes.
+  # Every exit path returns non-zero on failure so the caller can log it; the caller swallows it.
+  [ "$VARIANT" = "desktop" ] || return 0
+  local ca="/home/$OP/loraham-pi-control/config/tls/server-ca/ca.crt"
+  local db="/home/$OP/.local/share/pki/nssdb" nick="LHPC Server TLS CA"
+  command -v certutil >/dev/null 2>&1 || { say "browser CA trust SKIPPED: certutil absent (libnss3-tools)"; return 1; }
+  [ -s "$ca" ] || { say "browser CA trust SKIPPED: $ca missing"; return 1; }
+  # Chromium 150 uses the XDG path; the legacy ~/.pki/nssdb is deliberately neither created nor
+  # inspected. Every certutil call names the database explicitly — never its default location.
+  as_op mkdir -p "$db" || return 1
+  if [ ! -f "$db/cert9.db" ]; then
+    as_op certutil -d "sql:$db" -N --empty-password || { say "browser CA trust FAILED: cannot create $db"; return 1; }
+  fi
+  # Convergent: drop our own nickname first, so a re-run (or a rotated CA) REPLACES rather than
+  # accumulating a second, stale certificate under the same name.
+  as_op certutil -d "sql:$db" -D -n "$nick" >/dev/null 2>&1 || true
+  as_op certutil -d "sql:$db" -A -t "C,," -n "$nick" -i "$ca" \
+    || { say "browser CA trust FAILED: import of $ca"; return 1; }
+  # EXACT nickname lookup, not `certutil -L | grep` — a substring match would pass on some other
+  # certificate entirely.
+  as_op certutil -d "sql:$db" -L -n "$nick" >/dev/null 2>&1 \
+    || { say "browser CA trust FAILED: '$nick' absent from $db after import"; return 1; }
+  say "browser CA trusted in $db"
+}
 step_console(){
   local i
   for i in 1 2 3; do
@@ -465,6 +592,7 @@ step_swap(){
 # (rootfs is already grown by lhpc-growroot.service, ordered before this unit)
 run_step identity   step_identity
 run_step timezone   step_timezone
+run_step keyboard   step_keyboard
 run_step hostname   step_hostname
 run_step account    step_account
 run_step hostkeys   step_hostkeys
@@ -484,6 +612,9 @@ run_step device_pki step_device_pki
 run_step expose     step_expose
 run_step stackweb   step_stackweb
 run_step console    step_console
+# Not run_step'd on purpose — see step_browser_ca: no marker, never fatal, retries until firstboot
+# completes. Same call shape as step_ap/step_confirm_ap above.
+say "step browser_ca"; step_browser_ca || say "browser CA trust not established (cosmetic; console still works)"
 run_step firewall   step_firewall
 run_step healthz    step_healthz
 run_step callsign   step_callsign

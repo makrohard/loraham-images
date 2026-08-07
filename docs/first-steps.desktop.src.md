@@ -23,7 +23,9 @@ cannot lock you out.
 - Console on **127.0.0.1:@CONSOLE_PORT@**, MeshCom on **:8444**, Meshtastic on **:8445** — all on this
   Pi only. The stacks are not exposed to any network.
 - The managed firewall is **already applied**; the stacks' own ports are blocked.
-- Timezone **@TIMEZONE@**, Wi-Fi country **@WIFI_COUNTRY@** — change either in `lhpc-config.txt`.
+- Regional defaults are **German**: timezone **@TIMEZONE@**, Wi-Fi country **@WIFI_COUNTRY@**,
+  keyboard **@KEYBOARD@** (`Alt+Shift` switches layout). Change any of them in `lhpc-config.txt`.
+  Wi-Fi country is a regulatory setting — set your own before operating the radio.
   A Pi has no battery clock, so an offline box keeps the time it last knew.
 - **Every stack is already installed and built** — none is running, and nothing transmits
   just from booting. Start what you want with `lhpc stack start <name>`.

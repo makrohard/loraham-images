@@ -117,6 +117,40 @@ if [ -z "$cs" ] || [ "$cs" = "N0CALL" ]; then ok "callsign unset/default (${cs:-
   || fail "device PKI (server cert/key) missing after firstboot"
 ok "fresh device PKI present"
 
+# keyboard: the configured layout actually reached /etc/default/keyboard. The base ships 'gb'
+# while the image's other defaults are German, so this catches both a step that silently did
+# nothing and a step that wrote something other than what was configured.
+KB_WANT="${KEYBOARD:-gb}"
+grep -q "^XKBLAYOUT=\"$KB_WANT\"\$" /etc/default/keyboard \
+  || fail "keyboard: /etc/default/keyboard does not carry XKBLAYOUT=\"$KB_WANT\" ($(grep -m1 '^XKBLAYOUT=' /etc/default/keyboard 2>/dev/null || echo 'file missing'))"
+ok "keyboard layout applied ($KB_WANT)"
+# Multi-layout configs need a way to reach the alternate; a single layout must NOT get a toggle.
+case "$KB_WANT" in
+  *,*) grep -q '^XKBOPTIONS="grp:alt_shift_toggle"$' /etc/default/keyboard \
+         || fail "keyboard: multi-layout '$KB_WANT' has no group toggle" ;;
+  *)   grep -q '^XKBOPTIONS=""$' /etc/default/keyboard \
+         || fail "keyboard: single layout '$KB_WANT' should carry no XKBOPTIONS" ;;
+esac
+ok "keyboard toggle matches the layout count"
+if [ "${VARIANT:-}" = desktop ]; then
+  # This asserts the CONFIG only — that the three files carry the layout. The typing proof is a
+  # hardware step (press `y`, get `z`), done separately and passed. If you repeat that proof, do it
+  # at a keyboard physically attached to the Pi: over VNC, wayvnc injects through its own virtual
+  # keyboard with its own layout, so a correct configuration looks broken.
+  for _f in /etc/xdg/labwc/environment /etc/xdg/labwc-greeter/environment "/home/$OP/.config/labwc/environment"; do
+    grep -q "^XKB_DEFAULT_LAYOUT=$KB_WANT\$" "$_f" 2>/dev/null \
+      || fail "keyboard: $_f does not carry XKB_DEFAULT_LAYOUT=$KB_WANT (desktop session would stay on the base layout)"
+  done
+  ok "labwc session/greeter/user keymaps applied"
+  # Browser CA trust is best-effort inside firstboot (it must never block a boot), so it needs an
+  # assertion OUT HERE or a silent skip would ship with every gate green. Exact nickname lookup in
+  # the exact database — not `certutil -L | grep`, which would pass on some other certificate.
+  NSSDB="/home/$OP/.local/share/pki/nssdb"
+  runuser -u "$OP" -- certutil -d "sql:$NSSDB" -L -n "LHPC Server TLS CA" >/dev/null 2>&1 \
+    || fail "console CA not trusted in $NSSDB — Chromium would show a certificate interstitial"
+  ok "console CA trusted in the operator's NSS store"
+fi
+
 if [ "$MODE" = firstboot ]; then
   [ -f /var/lib/lhpc/.firstboot-done ] || fail "firstboot did not complete (.firstboot-done missing)"
   ok "firstboot completed"

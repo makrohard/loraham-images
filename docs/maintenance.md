@@ -98,6 +98,39 @@ Because a rerun replays the WHOLE sequence, the steps must be convergent, not ju
   every incomplete boot, otherwise an unchanged retry could finish while `lhpc-recovery-ap` still
   held the radio and leave a "complete" box advertising the recovery SSID.
 
+## Repairing images built before the ownership fix
+
+Images built before the overlay copy was corrected shipped `/`, `/etc`, `/etc/systemd`,
+`/etc/systemd/system`, `/usr`, `/usr/local`, `/usr/local/sbin` **and every overlay file inside
+them** owned by the operator account (uid 1001), not root. `cp -a` preserved the CI checkout's
+uid, and uid 1001 is the operator inside the image. Owning a directory means being able to create,
+rename and unlink its entries, so the operator could replace anything in `/etc` without sudo.
+
+Fresh images are fixed at the source (`build.sh` copies with `--no-preserve=ownership,mode`, and
+`seal.sh` fails the build if any overlay-mapped object is not root-owned). An already-flashed box
+cannot heal itself — repair it from a checkout of this repo at the matching commit:
+
+```bash
+cd loraham-images
+sudo chown -h root:root /
+while IFS= read -r -d '' rel; do sudo chown -h root:root "/$rel"; done \
+  < <(find overlay -mindepth 1 -printf '%P\0')
+```
+
+That walks the same source tree the image was built from, so it repairs exactly the objects that
+were affected — files and symlinks included, which a fixed list of directories would miss. Do
+**not** use `chown -R root:root /etc` or `/usr`: those trees legitimately contain non-root-owned
+files, and a recursive chown would destroy that.
+
+Verify:
+
+```bash
+stat -c '%U:%G %n' / /etc /usr /usr/local/sbin/lhpc-firstboot   # all root:root
+```
+
+`assets/desktop` is deliberately not part of the walk: those files are newer than the defect and
+are installed explicitly root-owned, so they were never affected.
+
 ## Routine release
 - Re-run the workflow (dispatch or tag `v*`); artifacts + logs upload; a `v*` tag publishes per
   variant **independently** (Lite can release while Desktop is still red/oversized).

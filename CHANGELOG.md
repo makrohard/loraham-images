@@ -2,6 +2,10 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.1.7
+
+- Image objects are root-owned again (the overlay copy handed `/`, `/etc` and `/usr` to the operator account); keyboard follows `KEYBOARD=` (default `de,us`, console + labwc); Desktop gains a Markdown viewer, console/README launchers, the console CA trusted in Chromium and a wallpaper; the build-time LHPC clone is dropped
+
 ## v0.1.6
 
 - **Recovery no longer depends on a successful first boot.** SSH comes up before the rootfs

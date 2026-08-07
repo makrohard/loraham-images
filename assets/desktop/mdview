@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""Minimal markdown viewer: render to HTML in /tmp, open in the default browser.
+Dependency-light - python3-markdown plus a browser that is already installed.
+
+Relative links are handled: a <base> makes images/assets resolve against the
+source directory, and links to other .md files are rendered too (recursively)
+with their hrefs rewritten, so navigation inside a doc set works."""
+import sys, os, re, html, hashlib, tempfile, subprocess, urllib.parse
+import markdown
+
+CSS = """
+body{max-width:52rem;margin:2rem auto;padding:0 1.5rem;
+ font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+ color:#1a1a1a;background:#fff}
+@media(prefers-color-scheme:dark){body{color:#e6e6e6;background:#161616}
+ code,pre{background:#242424}a{color:#7ab7ff}th{background:#242424}
+ table,th,td{border-color:#3a3a3a}blockquote{color:#aaa}}
+h1,h2,h3{line-height:1.25;margin-top:2rem}
+h1,h2{border-bottom:1px solid #8884;padding-bottom:.3rem}
+code{background:#f2f2f2;padding:.15em .4em;border-radius:4px;font-size:.9em}
+pre{background:#f2f2f2;padding:1rem;border-radius:6px;overflow-x:auto}
+pre code{background:none;padding:0}
+table{border-collapse:collapse;width:100%;overflow-x:auto;display:block}
+th,td{border:1px solid #ccc;padding:.4rem .6rem;text-align:left}
+blockquote{border-left:3px solid #8886;margin:0;padding-left:1rem;color:#666}
+img{max-width:100%}
+"""
+OUTDIR = tempfile.gettempdir()
+MAXDEPTH = 3
+LINK = re.compile(r'(href=")([^"#?]+\.md)((?:#[^"]*)?)(")', re.I)
+
+
+def outpath(src):
+    h = hashlib.sha1(os.path.abspath(src).encode()).hexdigest()[:10]
+    return os.path.join(OUTDIR, "mdview-" + h + ".html")
+
+
+def render(src, depth=0, done=None):
+    done = done if done is not None else set()
+    src = os.path.abspath(src)
+    if src in done or not os.path.isfile(src):
+        return outpath(src)
+    done.add(src)
+    with open(src, encoding="utf-8", errors="replace") as f:
+        body = markdown.markdown(
+            f.read(), extensions=["extra", "toc", "sane_lists", "codehilite"])
+    base = os.path.dirname(src)
+
+    def fix(m):
+        target = urllib.parse.unquote(m.group(2))
+        tgt = target if os.path.isabs(target) else os.path.join(base, target)
+        tgt = os.path.normpath(tgt)
+        if os.path.isfile(tgt):
+            if depth < MAXDEPTH:
+                render(tgt, depth + 1, done)
+            return m.group(1) + "file://" + outpath(tgt) + m.group(3) + m.group(4)
+        return m.group(0)
+
+    body = LINK.sub(fix, body)
+    doc = ('<!doctype html><meta charset=utf-8>'
+           '<base href="file://' + base + '/">'
+           '<title>' + html.escape(os.path.basename(src)) + '</title>'
+           '<style>' + CSS + '</style>' + body)
+    out = outpath(src)
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(doc)
+    return out
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("usage: mdview FILE.md", file=sys.stderr)
+        return 2
+    out = render(sys.argv[1])
+    for br in ("xdg-open", "chromium", "firefox"):
+        if subprocess.run(["which", br], capture_output=True).returncode == 0:
+            subprocess.Popen([br, out])
+            return 0
+    return 1
+
+
+sys.exit(main())

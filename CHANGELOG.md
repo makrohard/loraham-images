@@ -2,6 +2,10 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.1.8
+
+- Rebuild only — nothing in this repo changed. Picks up `loraham-pi-control` `f79da61`: the LoRaHAM daemon, chat and iGate are plain GPLv3 (the extra non-commercial and reporting conditions are gone, with the author's permission), and a finished task banner dated in the future no longer sticks on a box whose clock lags the build
+
 ## v0.1.7
 
 - Image objects are root-owned again (the overlay copy handed `/`, `/etc` and `/usr` to the operator account); keyboard follows `KEYBOARD=` (default `de,us`, console + labwc); Desktop gains a Markdown viewer, console/README launchers, the console CA trusted in Chromium and a wallpaper; the build-time LHPC clone is dropped

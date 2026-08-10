@@ -2,7 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
-## Unreleased
+## v0.1.9
+
+- Rebuild on `loraham-pi-control` v0.1.11 (`819e392`): graywolf replaces the deprecated igate
+  (fetched `.deb`, own web login), GPS works out of the box (source `auto` + per-stack
+  `use_gps` on — a box without gpsd simply runs without position), and the Stacks page no
+  longer jumps when using the accordion
 
 - Proxies the new `graywolf` stack's web UI: AP-only on Lite (`10.42.0.1:8446`), loopback-only on
   Desktop, following the existing `PROXY_MODE`. The proxy is no-auth like the others, but graywolf

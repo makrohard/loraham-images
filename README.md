@@ -107,6 +107,7 @@ same drive.
 | Web GUI | `https://10.42.0.1:8443` — AP only, no password | `https://127.0.0.1:8443` — on the Pi only |
 | MeshCom UI | `10.42.0.1:8444` — AP only | `127.0.0.1:8444` — on the Pi only |
 | Meshtastic UI | `10.42.0.1:8445` — AP only | `127.0.0.1:8445` — on the Pi only |
+| Graywolf APRS UI | `10.42.0.1:8446` — AP only, **own login** | `127.0.0.1:8446` — on the Pi only |
 | SSH | on, **every** network the Pi is on | on, **every** network the Pi is on |
 | firewall | on; the stacks' own ports are blocked | on; the stacks' own ports are blocked |
 | stacks | installed & built, **minus the desktop-only parts**, none running | **all** installed & built, none running |
@@ -115,6 +116,10 @@ same drive.
 
 `XXXX` is a per-device suffix. If you see **`lhpc-recovery-XXXX`** instead, first boot did not finish —
 join it (key `lorahampi`, always the factory one) and see Troubleshooting.
+
+> **Graywolf asks for a password**, unlike the console and the other proxied UIs. It generates one
+> on its first start; the console shows the account and the command to read it under
+> **Apps → Graywolf APRS → Password** (the file is `state/graywolf/graywolf-admin.txt` on the Pi).
 
 > **The regional defaults are German** — timezone `Europe/Berlin`, Wi-Fi country `DE`, keyboard
 > `de,us` (German, with English on `Alt+Shift`). Set `TIMEZONE`, `WIFI_COUNTRY` and `KEYBOARD` in

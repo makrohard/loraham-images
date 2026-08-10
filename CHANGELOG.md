@@ -2,6 +2,13 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## Unreleased
+
+- Proxies the new `graywolf` stack's web UI: AP-only on Lite (`10.42.0.1:8446`), loopback-only on
+  Desktop, following the existing `PROXY_MODE`. The proxy is no-auth like the others, but graywolf
+  has its own generated login — the console shows where to read it. Appended to `PROXY_STACKS` so
+  MeshCom (8444) and Meshtastic (8445) keep their ports
+
 ## v0.1.8
 
 - Rebuild only — nothing in this repo changed. Picks up `loraham-pi-control` `f79da61`: the LoRaHAM daemon, chat and iGate are plain GPLv3 (the extra non-commercial and reporting conditions are gone, with the author's permission), and a finished task banner dated in the future no longer sticks on a box whose clock lags the build

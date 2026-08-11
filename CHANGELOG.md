@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.1.11
+
+- Rebuild on `loraham-pi-control` v0.1.13 (`4abcefc`): graywolf gains an upstream-release
+  check and a one-click update to the latest `.deb` (verified against upstream's own
+  checksums.txt); the default pinned/reviewed fetch is unchanged
+
 ## v0.1.10
 
 - Rebuild on `loraham-pi-control` v0.1.12 (`1735e2f`): boot-restore honors an explicit

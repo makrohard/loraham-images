@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.1.12
+
+- Rebuild on `loraham-pi-control` v0.1.14 (`6e1d1e6`): the Certificates panel's `scp`
+  fetch copyboxes render in every serving mode again, so a plain no-auth box can bootstrap
+  cert auth from them (they carry the box's live IP and only active certs)
+
 ## v0.1.11
 
 - Rebuild on `loraham-pi-control` v0.1.13 (`4abcefc`): graywolf gains an upstream-release

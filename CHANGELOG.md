@@ -2,6 +2,13 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.1.10
+
+- Rebuild on `loraham-pi-control` v0.1.12 (`1735e2f`): boot-restore honors an explicit
+  operator stop across reboots, the Certificates panel gains scp/download fetch helpers
+  for the trust material, and fetched packages (graywolf) show their version with an
+  Update offer when the pin moves
+
 ## v0.1.9
 
 - Rebuild on `loraham-pi-control` v0.1.11 (`819e392`): graywolf replaces the deprecated igate

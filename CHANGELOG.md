@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.1.13
+
+- Rebuild on `loraham-pi-control` v0.1.15 (`4832aa3`): graywolf's 433 TX defaults to
+  433.775 (single-channel, heard by stock ESP32 trackers; the RX/TX split stays
+  available by config)
+
 ## v0.1.12
 
 - Rebuild on `loraham-pi-control` v0.1.14 (`6e1d1e6`): the Certificates panel's `scp`

@@ -2,6 +2,13 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.1.14
+
+- Rebuild on `loraham-pi-control` v0.1.16 (`03b1804`): dashboard **Reboot / Shut down**
+  buttons (polkit rule installed by bootstrap, so fresh images have them working out of
+  the box); stopping a stack tears down the dependency chain it alone used; the
+  Start-confirm page shows and edits dependency-stack parameters
+
 ## v0.1.13
 
 - Rebuild on `loraham-pi-control` v0.1.15 (`4832aa3`): graywolf's 433 TX defaults to

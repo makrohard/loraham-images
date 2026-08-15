@@ -144,9 +144,15 @@ as_op git clone --quiet --depth 1 https://github.com/makrohard/loraham-pi-contro
 BOOT="$CLONE/bootstrap-deps.sh"
 [ -f "$BOOT" ] || die "bootstrap-deps.sh not found in clone"
 
+# Desktop: the console's Wi-Fi Network panel is a Lite/AP feature (the desktop session owns
+# Wi-Fi there, and there is no AP) — skip its polkit rule. Lite keeps the default (install).
+NETFLAG=""
+[ "$VARIANT" = "lite" ] || NETFLAG="--no-network-controls"
+
 say "bootstrap-deps.sh --dry-run (hard gate; Lite: any nonzero fails, exit 6 = GUI leaked)"
 dry_rc=0
-bash "$BOOT" --dry-run > /var/log/bootstrap-dryrun.log 2>&1 || dry_rc=$?
+# shellcheck disable=SC2086
+bash "$BOOT" --dry-run $NETFLAG > /var/log/bootstrap-dryrun.log 2>&1 || dry_rc=$?
 if [ "$dry_rc" -ne 0 ]; then
   cat /var/log/bootstrap-dryrun.log
   if [ "$VARIANT" = "lite" ]; then
@@ -159,9 +165,9 @@ if [ "$dry_rc" -ne 0 ]; then
 fi
 
 # ---- 6. real bootstrap-deps ------------------------------------------------
-say "bootstrap-deps.sh (real) --spi-mode soft-cs --operator-user $OPERATOR_USER --no-swapfile $BOOTSTRAP_GUI"
+say "bootstrap-deps.sh (real) --spi-mode soft-cs --operator-user $OPERATOR_USER --no-swapfile $BOOTSTRAP_GUI $NETFLAG"
 # shellcheck disable=SC2086
-bash "$BOOT" --spi-mode soft-cs --operator-user "$OPERATOR_USER" --no-swapfile $BOOTSTRAP_GUI
+bash "$BOOT" --spi-mode soft-cs --operator-user "$OPERATOR_USER" --no-swapfile $BOOTSTRAP_GUI $NETFLAG
 
 # ---- 7. install.sh as the operator; assert resolved SHA --------------------
 say "install.sh (documented path) as $OPERATOR_USER"

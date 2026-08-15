@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.1.15
+
+- Rebuild on `loraham-pi-control` v0.1.17 (`50dcb4b`): **Network** panel on lite images —
+  join an existing Wi-Fi from the console with the box's own AP as automatic fallback and
+  an optional preferred network; power-button visibility fixed on fresh images
+
 ## v0.1.14
 
 - Rebuild on `loraham-pi-control` v0.1.16 (`03b1804`): dashboard **Reboot / Shut down**

@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.2.1
+
+- Rebuild on `loraham-pi-control` v0.2.1 (`c9ae725`): the Network panel's **"Back to AP mode"**
+  works on fresh images — the installed polkit rule now grants the NetworkManager `wifi.share.*`
+  actions that re-activating the box's own (shared) AP requires
+
 ## v0.2.0
 
 - Rebuild on `loraham-pi-control` v0.2.0 (`fbdec79`), version aligned to LHPC's. **On-device

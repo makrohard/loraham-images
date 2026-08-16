@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## Unreleased
+
+- README rebuilt around a browser-first **Install** walkthrough (12 steps, CLI collapsed per step);
+  the on-device first-steps no longer tell a Lite box to update the OS while on its own
+  AP, where it has no internet
+
 ## v0.1.15
 
 - Rebuild on `loraham-pi-control` v0.1.17 (`50dcb4b`): **Network** panel on lite images —

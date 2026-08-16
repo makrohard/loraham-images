@@ -18,9 +18,11 @@ Join it with the same key **@AP_PSK@** (the recovery network always uses the fac
 - **Change the password** (`passwd`) and **the AP key**
   (`sudo nmcli connection modify lhpc-ap wifi-sec.psk 'new-key' && sudo nmcli connection up lhpc-ap`).
   Both are public defaults, and SSH answers on **every** network the Pi joins.
-- **Update the OS:** `sudo apt update && sudo apt full-upgrade`.
 - **Pick your radio hardware** (`lhpc hardware`) and **set your callsign**
   (`lhpc config operator --callsign YOURCALL`). Nothing transmits until you do.
+
+Click-by-click walkthrough (browser-first, certificates, home Wi-Fi):
+https://github.com/makrohard/loraham-images#install
 
 ## What is already set up
 
@@ -43,4 +45,6 @@ Join it with the same key **@AP_PSK@** (the recovery network always uses the fac
 
 The AP address @AP_ADDR@ and the AP-scoped console go away; **SSH stays reachable** on the new IP —
 which is why changing the password comes first. To reach the console there, expose it with a client
-certificate: see the repo README.
+certificate: see the repo README. Then, **with internet for the first time**, update the OS:
+`sudo apt update && sudo apt full-upgrade` (the box's own AP has no upstream, so updating before
+this point cannot work).

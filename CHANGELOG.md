@@ -2,8 +2,13 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
-## Unreleased
+## v0.2.0
 
+- Rebuild on `loraham-pi-control` v0.2.0 (`fbdec79`), version aligned to LHPC's. **On-device
+  behavior is unchanged from the v0.1.17-based image**: LHPC 0.2.0's headline additions — the
+  interactive in-browser **Pages demo** and the **Codespaces test lab** — ship nothing into the
+  wheel or the image; the cloned LHPC source now also carries their `demo/` and `testlab/` trees,
+  inert on the Pi
 - README rebuilt around a browser-first **Install** walkthrough (12 steps, CLI collapsed per step);
   the on-device first-steps no longer tell a Lite box to update the OS while on its own
   AP, where it has no internet

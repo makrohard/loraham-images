@@ -2,6 +2,11 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## Unreleased
+
+- README: **Licenses & attribution** section — per-project licenses and source links for the
+  binaries the images ship prebuilt (graywolf, Meshtastic web)
+
 ## v0.2.1
 
 - Rebuild on `loraham-pi-control` v0.2.1 (`c9ae725`): the Network panel's **"Back to AP mode"**

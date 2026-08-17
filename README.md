@@ -1,3 +1,5 @@
+🇩🇪 **[Hier geht's zur deutschen Anleitung](README_DE.md)**
+
 # loraham-images
 
 Ready-to-use **Raspberry Pi OS (Trixie, 64-bit)** images with

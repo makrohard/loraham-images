@@ -34,6 +34,7 @@ daemon they share. The applications fall into two families, and the difference m
 - [GPS (optional)](#gps-optional)
 - [Troubleshooting](#troubleshooting)
 - [Defaults](#defaults)
+- [Licenses & attribution](#licenses--attribution)
 
 ## Install
 
@@ -443,3 +444,32 @@ For local commissioning only — change them (steps 7–8):
 **More docs** — LHPC upstream: [README](https://github.com/makrohard/loraham-pi-control#readme) ·
 [docs](https://github.com/makrohard/loraham-pi-control/tree/main/docs). The same files are on the Pi
 at `~/loraham-pi-control/src/loraham-pi-control/`, plus `lhpc --help`.
+
+## Licenses & attribution
+
+The images are distributed free of charge and non-commercially. They aggregate the software
+below; each project remains under its own license (notice files ship inside the image).
+
+- **[graywolf](https://github.com/chrissnell/graywolf)** — © Chris Snell, NW5W · GPL-2.0-or-later.
+  Shipped as the unmodified upstream package; source for the pinned version is at the link.
+- **[Meshtastic firmware](https://github.com/meshtastic/firmware)** — © Meshtastic contributors ·
+  GPL-3.0 · built from source (the source tree ships in the image).
+  **[Meshtastic web client](https://github.com/meshtastic/web)** — GPL-3.0 · shipped as the
+  upstream build; source at the link.
+- **[Sideband](https://github.com/markqvist/Sideband)** — © Mark Qvist ·
+  [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) · unmodified · Desktop
+  image only.
+- **[Reticulum](https://github.com/markqvist/Reticulum)** and
+  **[LXMF](https://github.com/markqvist/LXMF)** — © Mark Qvist · Reticulum License;
+  **[NomadNet](https://github.com/markqvist/NomadNet)** — © Mark Qvist · GPL-3.0.
+- **LoRaHAM daemon, chat, iGate and [Voice](https://github.com/LoRaHAM/LoRaHAM_Voice)** — by
+  **Alexander Walter** ([LoRaHAM project](https://github.com/LoRaHAM)); daemon/chat/iGate GPL-3.0
+  via the [maintained fork](https://github.com/makrohard/LoRaHAM_Daemon) · built from source.
+- **[MeshCom firmware](https://github.com/icssw-org/MeshCom-Firmware)** — © ICSSW · MIT.
+  **MeshCore** tooling — MIT ([meshcore-cli](https://github.com/meshcore-dev/meshcore-cli),
+  [meshcore-pi](https://github.com/makrohard/meshcore-pi) © Brian Widdas,
+  [node manager](https://github.com/makrohard/meshcore-node-manager)).
+- **[RadioLib](https://github.com/jgromes/RadioLib)** — © Jan Gromeš · MIT.
+- **[LoRaHAM Pi Control](https://github.com/makrohard/loraham-pi-control)**, the KISS TNC, the
+  MeshCom bridge and QEMU tooling — © makrohard · MIT.
+- Base system: Raspberry Pi OS / Debian — package licenses in `/usr/share/doc/` on the Pi.

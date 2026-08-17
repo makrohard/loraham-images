@@ -37,6 +37,7 @@ rechtlich wichtig:
 - [GPS (optional)](#gps-optional)
 - [Fehlerbehebung](#fehlerbehebung)
 - [Standardwerte](#standardwerte)
+- [Lizenzen & Attribution](#lizenzen--attribution)
 
 ## Installation
 
@@ -470,3 +471,9 @@ Nur für die Inbetriebnahme vor Ort — ändere sie (Schritte 7–8):
 (auch [auf Deutsch](https://github.com/makrohard/loraham-pi-control/blob/main/README.de.md)) ·
 [docs](https://github.com/makrohard/loraham-pi-control/tree/main/docs). Dieselben Dateien liegen
 auf dem Pi unter `~/loraham-pi-control/src/loraham-pi-control/`, dazu `lhpc --help`.
+
+## Lizenzen & Attribution
+
+Die Images sind frei und nicht-kommerziell. Welche Software sie enthalten, unter welcher Lizenz
+und von wem: siehe [Licenses & attribution](README.md#licenses--attribution) in der englischen
+README.

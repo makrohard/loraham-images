@@ -10,8 +10,10 @@ for f in "${scripts[@]}"; do bash -n "$f" && echo "  ok $f"; done
 echo "== shellcheck =="
 if command -v shellcheck >/dev/null 2>&1; then
   # SC1091: sourced files resolved at runtime; SC2154: vars from load_env/config;
+  # SC2329 (shellcheck >=0.10): the test stubs ARE invoked indirectly — the extracted
+  # parser is sourced and calls them — same reason SC2317 is already suppressed there;
   # SC2015: reviewed A&&B||C idioms (each C is the correct fallback in these spots).
-  if shellcheck -x -e SC1091,SC2154,SC2015 "${scripts[@]}"; then
+  if shellcheck -x -e SC1091,SC2154,SC2015,SC2329 "${scripts[@]}"; then
     echo "  shellcheck clean"
   else
     echo "  shellcheck FAILED"; exit 1

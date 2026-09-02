@@ -4,10 +4,11 @@ Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](do
 
 ## v0.2.6
 
-- Rebuild on `loraham-pi-control` v0.2.6, skipping the v0.2.2–v0.2.5 image releases: the images
-  carry everything those brought (MeshCore persistent identity + startup position, the guarded
-  `lhpc meshtastic` passthrough, Voice on headless/Lite boxes, the Stacks-WebGUI proxy panel) plus
-  **coherent identities**
+- Rebuild on `loraham-pi-control` v0.2.6. The v0.2.2 and v0.2.4 images shipped as rebuild-only
+  tags with no changelog entry of their own; v0.2.3 and v0.2.5 had no image release. This entry
+  therefore also covers what those LHPC versions brought (MeshCore persistent identity + startup
+  position, the guarded `lhpc meshtastic` passthrough, Voice on headless/Lite boxes, the
+  Stacks-WebGUI proxy panel) alongside **coherent identities**
 - **First boot: `CALL` must be your bare base callsign.** The global operator callsign takes no
   SSID and no `/P` — LHPC refuses one — so `lhpc-config.txt` now rejects it while naming the file
   and key, instead of failing mid-boot with "callsign set failed". Per-stack variants (Graywolf's

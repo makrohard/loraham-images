@@ -89,11 +89,12 @@ AP_PSK=choose-a-wifi-key
 WIFI_COUNTRY=DE
 TIMEZONE=Europe/Berlin
 KEYBOARD=de,us
-CALL=N0CALL
+CALL=DJ0CHE
 ```
 
 Mit `PASSWORD` und `AP_PSK` wird Schritt 8 später zur reinen Kontrolle, und `CALL` trägt dein
-Rufzeichen schon einmal ein. `AP_PSK` gilt nur für **Lite** — Desktop baut kein eigenes WLAN auf,
+Rufzeichen schon einmal ein — das **blanke Basisrufzeichen**, ohne SSID und ohne `/P`
+(stackeigene Varianten kommen später). `AP_PSK` gilt nur für **Lite** — Desktop baut kein eigenes WLAN auf,
 sondern kommt in deins. Alles andere gilt für beide.
 
 Bricht der erste Start unterwegs ab: Datei korrigieren und neu booten — der Pi merkt die
@@ -166,20 +167,24 @@ erreichbar.
 
 ### 5 · Hardware + Rufzeichen
 
-**Apps → Graywolf APRS → Configure**: dein **Funkmodul** im Dropdown wählen und dein
-**Stationsrufzeichen** mit APRS-SSID eintragen (z. B. `N0CALL-10`) → Save. Das Rufzeichen ist
-eine **globale Einstellung** — alle lizenzpflichtigen Stacks erben es; Graywolf trägt lediglich
-die APRS-Variante mit `-SSID`. Gesendet wird noch nichts — und auch später erst, wenn du einen
-Stack startest.
+**Apps → Graywolf APRS → Configure**: dein **Funkmodul** im Dropdown wählen, dann das Rufzeichen
+setzen. Das **globale** Operator-Rufzeichen ist das blanke Basisrufzeichen (z. B. `G0ABC`) —
+lizenzpflichtige Stacks (Chat, iGate, Voice, Graywolf, MeshCom) erben es, solange ihr eigenes
+Rufzeichenfeld leer ist. Graywolfs eigenes Feld trägt die APRS-Variante mit `-SSID`
+(z. B. `G0ABC-10`) und überschreibt es. Meshtastic und MeshCore erben nie ein Rufzeichen — jeder
+Knoten braucht seinen eigenen Namen. Gesendet wird noch nichts — und auch später erst, wenn du
+einen Stack startest.
 
 <details><summary>CLI</summary>
 
 ```bash
 lhpc hardware                        # list the boards
 lhpc hardware uputronics             # e.g. a dual Uputronics rig
-lhpc config operator --callsign N0CALL
+lhpc config operator --callsign G0ABC        # dein EIGENES Basisrufzeichen
 ```
-Das Operator-Rufzeichen ist global — jeder Stack ohne eigenes Rufzeichenfeld erbt es.
+Das Operator-Rufzeichen ist global — lizenzpflichtige Stacks erben es, solange ihr eigenes
+Rufzeichenfeld leer ist. Ohne auflösbare Identität startet ein Stack nicht, also vor Schritt 6
+setzen.
 </details>
 
 <details><summary>Funkmodule & SPI</summary>

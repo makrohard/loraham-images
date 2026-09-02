@@ -85,7 +85,14 @@ parse_bootcfg(){
         # word "REDACTED". Fail closed and tell the operator to put the real value back.
         [ "$v" = "REDACTED" ] && cfg_reject "PASSWORD=REDACTED is the placeholder left after first boot — restore the intended password. Replaying firstboot on a commissioned box is unsupported."
         { [ -n "$v" ] && [ "${#v}" -le 128 ]; } && CFG["$k"]="$v" || cfg_reject "PASSWORD must be 1–128 characters" ;;
-      CALL)         case "$v" in *[![:alnum:]/-]*) cfg_reject "CALL has invalid characters";; *) [ "${#v}" -le 16 ] && CFG["$k"]="$v" || cfg_reject "CALL too long";; esac ;;
+      # The GLOBAL operator callsign is the bare base call only — LHPC refuses an SSID or a
+      # portable suffix there (per-stack variants are set later with `lhpc config <stack> …`).
+      # Catch it HERE, where we can name the file and the key, rather than failing mid-boot.
+      CALL)         case "$v" in
+                      "") CFG["$k"]="$v" ;;
+                      *[!A-Za-z0-9]*) cfg_reject "CALL must be your bare base callsign — letters and digits only, no SSID like '-10' and no '/P'; set per-stack variants after first boot with 'lhpc config <stack> <field> <value>'" ;;
+                      *) { [ "${#v}" -ge 3 ] && [ "${#v}" -le 6 ]; } && CFG["$k"]="$v" || cfg_reject "CALL must be 3-6 characters (your bare base callsign)" ;;
+                    esac ;;
       EXPOSE_SCOPE) case "$v" in ap|none) CFG["$k"]="$v";; *) cfg_reject "EXPOSE_SCOPE must be 'ap' or 'none'";; esac ;;
       TIMEZONE)
         # Zone NAMES only. Reject traversal/absolute paths before touching the filesystem, then

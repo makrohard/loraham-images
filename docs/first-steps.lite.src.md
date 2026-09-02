@@ -19,7 +19,8 @@ Join it with the same key **@AP_PSK@** (the recovery network always uses the fac
   (`sudo nmcli connection modify lhpc-ap wifi-sec.psk 'new-key' && sudo nmcli connection up lhpc-ap`).
   Both are public defaults, and SSH answers on **every** network the Pi joins.
 - **Pick your radio hardware** (`lhpc hardware`) and **set your callsign**
-  (`lhpc config operator --callsign YOURCALL`). Nothing transmits until you do.
+  (`lhpc config operator --callsign YOURCALL` — the bare base call, no SSID). Without a
+  resolvable identity a stack refuses to start, so nothing can transmit until you do.
 
 Click-by-click walkthrough (browser-first, certificates, home Wi-Fi):
 https://github.com/makrohard/loraham-images#install

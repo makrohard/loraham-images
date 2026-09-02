@@ -16,7 +16,8 @@ cannot lock you out.
 - **Change the password** (`passwd`). It is a public default and SSH is reachable.
 - **Update the OS:** `sudo apt update && sudo apt full-upgrade`.
 - **Pick your radio hardware** (`lhpc hardware`) and **set your callsign**
-  (`lhpc config operator --callsign YOURCALL`). Nothing transmits until you do.
+  (`lhpc config operator --callsign YOURCALL` — the bare base call, no SSID). Without a
+  resolvable identity a stack refuses to start, so nothing can transmit until you do.
 
 ## What is already set up
 

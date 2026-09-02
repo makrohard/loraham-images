@@ -2,8 +2,20 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
-## Unreleased
+## v0.2.6
 
+- Rebuild on `loraham-pi-control` v0.2.6, skipping the v0.2.2–v0.2.5 image releases: the images
+  carry everything those brought (MeshCore persistent identity + startup position, the guarded
+  `lhpc meshtastic` passthrough, Voice on headless/Lite boxes, the Stacks-WebGUI proxy panel) plus
+  **coherent identities**
+- **First boot: `CALL` must be your bare base callsign.** The global operator callsign takes no
+  SSID and no `/P` — LHPC refuses one — so `lhpc-config.txt` now rejects it while naming the file
+  and key, instead of failing mid-boot with "callsign set failed". Per-stack variants (Graywolf's
+  APRS `-SSID`, MeshCom's `-1`…`-99`) are set after first boot
+- **A stack without a resolvable identity refuses to start.** Licensed stacks inherit the global
+  callsign while their own field is empty; Meshtastic and MeshCore never inherit one and need
+  their own node names. README/first-steps corrected in both languages — the old instruction to
+  enter the station callsign *with an APRS SSID* as the global setting would now be refused
 - README: **Licenses & attribution** section — per-project licenses and source links for the
   binaries the images ship prebuilt (graywolf, Meshtastic web)
 

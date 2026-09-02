@@ -43,6 +43,13 @@ expect "valid config accepted"       "AP_PSK=abcdefgh" "$(run $'HOSTNAME=lab\nPA
 expect "country upper-cased"         "WIFI_COUNTRY=DE" "$(run 'WIFI_COUNTRY=de')"
 expect "inline comment stripped"     "AP_PSK=abcdefgh;" "$(run 'AP_PSK=abcdefgh   # note')"
 expect "misspelled key rejected"     "REJECT: unknown key 'PASSWROD'" "$(run 'PASSWROD=secret')"
+# The global callsign takes the BARE base call: LHPC refuses an SSID/portable suffix there, so a
+# CALL that carries one must be caught in the config file, not by a failed `lhpc config` mid-boot.
+expect "CALL with an SSID rejected"  "REJECT: CALL must be your bare base callsign" "$(run 'CALL=DJ0CHE-10')"
+expect "CALL portable rejected"      "REJECT: CALL must be your bare base callsign" "$(run 'CALL=DJ0CHE/P')"
+expect "CALL too long rejected"      "REJECT: CALL must be 3-6 characters" "$(run 'CALL=TOOLONGCALL')"
+expect "bare CALL accepted"          "CALL=DJ0CHE" "$(run 'CALL=DJ0CHE')"
+expect "empty CALL accepted"         "CALL=;" "$(run 'CALL=')"
 expect "bad country rejected"        "REJECT: WIFI_COUNTRY must be two letters" "$(run 'WIFI_COUNTRY=Germany')"
 expect "redacted password rejected"   "REJECT: PASSWORD=REDACTED is the placeholder" "$(run 'PASSWORD=REDACTED')"
 expect "redacted AP key rejected"     "REJECT: AP_PSK=REDACTED is the placeholder"   "$(run 'AP_PSK=REDACTED')"

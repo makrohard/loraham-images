@@ -84,10 +84,11 @@ AP_PSK=choose-a-wifi-key
 WIFI_COUNTRY=DE
 TIMEZONE=Europe/Berlin
 KEYBOARD=de,us
-CALL=N0CALL
+CALL=DJ0CHE
 ```
 
-`PASSWORD` and `AP_PSK` here turn step 8 into a quick check, and `CALL` pre-fills your callsign.
+`PASSWORD` and `AP_PSK` here turn step 8 into a quick check, and `CALL` pre-fills your callsign —
+the **bare base call**, no SSID and no `/P` (per-stack variants come later).
 `AP_PSK` applies to **Lite** only — Desktop joins your network instead of making one. Everything
 else applies to both.
 
@@ -156,9 +157,11 @@ No password: it is reachable only from the AP (Lite) or the Pi itself (Desktop).
 
 ### 5 · Hardware + callsign
 
-**Apps → Graywolf APRS → Configure**: pick your **radio board** from the dropdown, enter your
-**Station callsign** with an APRS SSID (e.g. `N0CALL-10`) → Save. The callsign is a **global
-setting** — every licensed stack inherits it; Graywolf just carries the APRS `-SSID` variant.
+**Apps → Graywolf APRS → Configure**: pick your **radio board** from the dropdown, then set your
+callsign. The **global** operator callsign is the bare base call (e.g. `G0ABC`) — licensed stacks
+(chat, iGate, Voice, Graywolf, MeshCom) inherit it while their own callsign field is empty.
+Graywolf's own field carries the APRS `-SSID` variant (e.g. `G0ABC-10`) and overrides it.
+Meshtastic and MeshCore never inherit a callsign — give each node its own name.
 Nothing transmits yet — and nothing will until you start a stack.
 
 <details><summary>CLI</summary>
@@ -166,9 +169,10 @@ Nothing transmits yet — and nothing will until you start a stack.
 ```bash
 lhpc hardware                        # list the boards
 lhpc hardware uputronics             # e.g. a dual Uputronics rig
-lhpc config operator --callsign N0CALL
+lhpc config operator --callsign G0ABC        # your OWN bare base call
 ```
-The operator callsign is global — every stack without a callsign field of its own inherits it.
+The operator callsign is global — licensed stacks inherit it while their own callsign field is
+empty. Without a resolvable identity a stack refuses to start, so set this before step 6.
 </details>
 
 <details><summary>Boards & SPI</summary>
@@ -193,7 +197,7 @@ sudo bash ~/loraham-pi-control/src/loraham-pi-control/bootstrap-deps.sh --spi-mo
 **Apps → Graywolf APRS → Start.** Its first start generates the app's **own login password** —
 you do **not** need to log in now; starting once is all it takes. **Apps → Graywolf APRS →
 Password** shows the account and a copyable command that prints the password — you'll run that
-in step 8. (Forgot the callsign? The start-confirm page asks for it.)
+in step 8. (Forgot the callsign? The start is refused and the start-confirm page asks for it.)
 
 <details><summary>CLI</summary>
 

@@ -172,5 +172,4 @@ are installed explicitly root-owned, so they were never affected.
 
 ## Upstream asks (not implemented here)
 - `install.sh --ref <sha|tag>` for pinned-not-recorded reproducibility.
-- Treat `N0CALL` as unset in the console dashboard predicate.
 - Gate B: self-hosted Pi runner + Zero-2W DUT for the hardware-only properties above.

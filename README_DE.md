@@ -181,6 +181,11 @@ einen Stack startest.
 lhpc hardware                        # list the boards
 lhpc hardware uputronics             # e.g. a dual Uputronics rig
 lhpc config operator --callsign G0ABC        # dein EIGENES Basisrufzeichen
+
+# Meshtastic und MeshCore erben es nie — jeden Knoten vor dem Start benennen:
+lhpc config meshtastic node_name "G0ABC node"
+lhpc config meshtastic node_short GABC       # maximal 4 Zeichen
+lhpc config meshcore node_name "G0ABC node"
 ```
 Das Operator-Rufzeichen ist global — lizenzpflichtige Stacks erben es, solange ihr eigenes
 Rufzeichenfeld leer ist. Ohne auflösbare Identität startet ein Stack nicht, also vor Schritt 6

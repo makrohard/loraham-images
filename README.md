@@ -170,6 +170,11 @@ Nothing transmits yet — and nothing will until you start a stack.
 lhpc hardware                        # list the boards
 lhpc hardware uputronics             # e.g. a dual Uputronics rig
 lhpc config operator --callsign G0ABC        # your OWN bare base call
+
+# Meshtastic and MeshCore never inherit it — name each node before starting it:
+lhpc config meshtastic node_name "G0ABC node"
+lhpc config meshtastic node_short GABC       # max 4 characters
+lhpc config meshcore node_name "G0ABC node"
 ```
 The operator callsign is global — licensed stacks inherit it while their own callsign field is
 empty. Without a resolvable identity a stack refuses to start, so set this before step 6.

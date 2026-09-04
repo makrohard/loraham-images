@@ -18,6 +18,9 @@ cannot lock you out.
 - **Pick your radio hardware** (`lhpc hardware`) and **set your callsign**
   (`lhpc config operator --callsign YOURCALL` — the bare base call, no SSID). Without a
   resolvable identity a stack refuses to start, so nothing can transmit until you do.
+- **Name the licence-free nodes** — Meshtastic and MeshCore never inherit the callsign:
+  `lhpc config meshtastic node_name "<name>"`, `lhpc config meshtastic node_short <=4 chars>`
+  and `lhpc config meshcore node_name "<name>"`. They refuse to start until you do.
 
 ## What is already set up
 

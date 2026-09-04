@@ -2,6 +2,13 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.2.8
+
+- Rebuild on `loraham-pi-control` v0.2.8: the MeshCore stack can run the **openHop repeater**
+  (chat node, repeater, or both in one process; `lhpc config meshcore mode …`), proxied web pages
+  are per component, proxy deny lists are spelling-tolerant. The openHop repeater and its
+  RepeaterUI are added to the licence section (MIT)
+
 ## v0.2.6
 
 - Rebuild on `loraham-pi-control` v0.2.6. The v0.2.2 and v0.2.4 images shipped as rebuild-only

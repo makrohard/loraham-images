@@ -479,8 +479,11 @@ below; each project remains under its own license (notice files ship inside the 
   via the [maintained fork](https://github.com/makrohard/LoRaHAM_Daemon) · built from source.
 - **[MeshCom firmware](https://github.com/icssw-org/MeshCom-Firmware)** — © ICSSW · MIT.
   **MeshCore** tooling — MIT ([openHop Core](https://github.com/openhop-dev/openhop_core), the
-  node implementation, built from source; [meshcore-webui](https://github.com/adradr/meshcore-webui),
-  the browser client; [meshcore-cli](https://github.com/meshcore-dev/meshcore-cli)).
+  node implementation, built from source; [openHop repeater](https://github.com/openhop-dev/openhop_repeater),
+  the repeater daemon, built from source, whose bundled dashboard is the prebuilt
+  [openHop RepeaterUI](https://github.com/openhop-dev/openHop_RepeaterUI) (source at the link);
+  [meshcore-webui](https://github.com/adradr/meshcore-webui), the browser client;
+  [meshcore-cli](https://github.com/meshcore-dev/meshcore-cli)).
 - **[RadioLib](https://github.com/jgromes/RadioLib)** — © Jan Gromeš · MIT.
 - **[LoRaHAM Pi Control](https://github.com/makrohard/loraham-pi-control)**, the KISS TNC, the
   MeshCom bridge and QEMU tooling — © makrohard · MIT.

@@ -157,11 +157,14 @@ No password: it is reachable only from the AP (Lite) or the Pi itself (Desktop).
 
 ### 5 · Hardware + callsign
 
-**Apps → Graywolf APRS → Configure**: pick your **radio board** from the dropdown, then set your
-callsign. The **global** operator callsign is the bare base call (e.g. `G0ABC`) — licensed stacks
-(chat, iGate, Voice, Graywolf, MeshCom) inherit it while their own callsign field is empty.
-Graywolf's own field carries the APRS `-SSID` variant (e.g. `G0ABC-10`) and overrides it.
-Meshtastic and MeshCore never inherit a callsign — give each node its own name.
+**Apps → Graywolf APRS → Configure**: pick your **radio board** from the dropdown.
+
+**Apps → LoRaHAM Pi Control → Global operator callsign**: enter your **bare base call**
+(e.g. `G0ABC` — no SSID, no `/P`). It lives on the console's own row, not on a stack page.
+Licensed stacks (chat, iGate, Voice, Graywolf, MeshCom) inherit it while their own callsign
+field is empty; Graywolf's own field carries the APRS `-SSID` variant (e.g. `G0ABC-10`) and
+overrides it. Meshtastic and MeshCore never inherit a callsign — name each node on its own
+Configure page. A stack with no resolvable identity refuses to start.
 Nothing transmits yet — and nothing will until you start a stack.
 
 <details><summary>CLI</summary>

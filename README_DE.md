@@ -167,12 +167,15 @@ erreichbar.
 
 ### 5 · Hardware + Rufzeichen
 
-**Apps → Graywolf APRS → Configure**: dein **Funkmodul** im Dropdown wählen, dann das Rufzeichen
-setzen. Das **globale** Operator-Rufzeichen ist das blanke Basisrufzeichen (z. B. `G0ABC`) —
-lizenzpflichtige Stacks (Chat, iGate, Voice, Graywolf, MeshCom) erben es, solange ihr eigenes
-Rufzeichenfeld leer ist. Graywolfs eigenes Feld trägt die APRS-Variante mit `-SSID`
-(z. B. `G0ABC-10`) und überschreibt es. Meshtastic und MeshCore erben nie ein Rufzeichen — jeder
-Knoten braucht seinen eigenen Namen. Gesendet wird noch nichts — und auch später erst, wenn du
+**Apps → Graywolf APRS → Configure**: dein **Funkmodul** im Dropdown wählen.
+
+**Apps → LoRaHAM Pi Control → Global operator callsign**: dein **blankes Basisrufzeichen**
+eintragen (z. B. `G0ABC` — ohne SSID, ohne `/P`). Es liegt auf der Zeile der Konsole selbst,
+nicht auf einer Stack-Seite. Lizenzpflichtige Stacks (Chat, iGate, Voice, Graywolf, MeshCom)
+erben es, solange ihr eigenes Rufzeichenfeld leer ist; Graywolfs eigenes Feld trägt die
+APRS-Variante mit `-SSID` (z. B. `G0ABC-10`) und überschreibt es. Meshtastic und MeshCore erben
+nie ein Rufzeichen — jeden Knoten auf seiner eigenen Configure-Seite benennen. Ein Stack ohne
+auflösbare Identität startet nicht. Gesendet wird noch nichts — und auch später erst, wenn du
 einen Stack startest.
 
 <details><summary>CLI</summary>

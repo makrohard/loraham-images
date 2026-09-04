@@ -19,6 +19,9 @@ Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](do
   enter the station callsign *with an APRS SSID* as the global setting would now be refused
 - README: **Licenses & attribution** section — per-project licenses and source links for the
   binaries the images ship prebuilt (graywolf, Meshtastic web)
+- The `v0.2.6` tag was moved twice before the published build (a first build failed on a stale
+  openHop patch, then the baked docs were corrected). A clone that fetched an earlier `v0.2.6`
+  keeps the old commit until `git fetch --tags --force`; the release assets are the final build
 
 ## v0.2.1
 

@@ -478,9 +478,9 @@ below; each project remains under its own license (notice files ship inside the 
   **Alexander Walter** ([LoRaHAM project](https://github.com/LoRaHAM)); daemon/chat/iGate GPL-3.0
   via the [maintained fork](https://github.com/makrohard/LoRaHAM_Daemon) · built from source.
 - **[MeshCom firmware](https://github.com/icssw-org/MeshCom-Firmware)** — © ICSSW · MIT.
-  **MeshCore** tooling — MIT ([meshcore-cli](https://github.com/meshcore-dev/meshcore-cli),
-  [meshcore-pi](https://github.com/makrohard/meshcore-pi) © Brian Widdas,
-  [node manager](https://github.com/makrohard/meshcore-node-manager)).
+  **MeshCore** tooling — MIT ([openHop Core](https://github.com/openhop-dev/openhop_core), the
+  node implementation, built from source; [meshcore-webui](https://github.com/adradr/meshcore-webui),
+  the browser client; [meshcore-cli](https://github.com/meshcore-dev/meshcore-cli)).
 - **[RadioLib](https://github.com/jgromes/RadioLib)** — © Jan Gromeš · MIT.
 - **[LoRaHAM Pi Control](https://github.com/makrohard/loraham-pi-control)**, the KISS TNC, the
   MeshCom bridge and QEMU tooling — © makrohard · MIT.

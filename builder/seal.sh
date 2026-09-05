@@ -53,6 +53,11 @@ rm -f "$ROOT"/etc/wayvnc/*.pem "$ROOT"/etc/wayvnc/*.key 2>/dev/null || true
 # not runtime code. Remove them (also slims the image).
 find "$ROOT" -type d \( -path '*/Crypto/SelfTest' -o -path '*/Cryptodome/SelfTest' \) \
   -prune -exec rm -rf {} + 2>/dev/null || true
+# CherryPy (the openHop repeater's dashboard server, in the meshcore venv since LHPC 0.2.8) ships
+# its own test suite with a public test certificate + key (cherrypy/test/test.pem). Same class:
+# static library test data, never a device secret, not runtime code. Remove the test package.
+find "$ROOT" -type d -path '*/site-packages/cherrypy/test' \
+  -prune -exec rm -rf {} + 2>/dev/null || true
 
 group_end
 

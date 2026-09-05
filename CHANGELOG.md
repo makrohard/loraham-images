@@ -2,6 +2,16 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.2.10
+
+- Rebuild on `loraham-pi-control` v0.2.10: **pins moved** — Reticulum 1.5.2, the MeshCom firmware
+  `dev` tip 674413c with the QEMU overlay rebased onto it (meshcom-qemu-raspi 579e463: `setup.sh`
+  fetches by ref, and the overlay bounds the tip's new per-loop GPS UART drain that starved the
+  firmware loop under QEMU), Meshtastic on the stable release tag v2.7.26 (the known-working line
+  follows stable tags, `dev` follows master); both binaries republished before this tag. Also the
+  known-working fix for headless boxes (a skipped GUI sidecar no longer blocks the composition).
+  Proven by the release test matrix (`docs/test-matrix.md`) on a Zero 2 W. The seal is unchanged
+
 ## v0.2.9
 
 - Rebuild on `loraham-pi-control` v0.2.9: **Start means start** — a web Start or Restart runs the

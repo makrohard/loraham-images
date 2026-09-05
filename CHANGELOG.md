@@ -2,6 +2,15 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.2.9
+
+- Rebuild on `loraham-pi-control` v0.2.9: **Start means start** — a web Start or Restart runs the
+  saved configuration (Settings is the only place configuration changes), runs detached with the
+  task banner following it, and only a consequential choice (a stack to stop, dependents a restart
+  takes down) asks for confirmation; pages read their evidence once per request (about half the
+  render time on a Pi); the stack page shows the stored web-UI passwords; the Meshtastic CLI is an
+  on-demand component listed on the Dashboard. No pins moved; the seal is unchanged
+
 ## v0.2.8
 
 - Rebuild on `loraham-pi-control` v0.2.8: the MeshCore stack can run the **openHop repeater**

@@ -7,7 +7,9 @@ Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](do
 - Rebuild on `loraham-pi-control` v0.2.8: the MeshCore stack can run the **openHop repeater**
   (chat node, repeater, or both in one process; `lhpc config meshcore mode …`), proxied web pages
   are per component, proxy deny lists are spelling-tolerant. The openHop repeater and its
-  RepeaterUI are added to the licence section (MIT)
+  RepeaterUI are added to the licence section (MIT). Re-cut on the final v0.2.8 head (the Stacks
+  list no longer shows a version twice; denied proxy paths answer 404 so the openHop dashboard
+  keeps its session); the seal strips CherryPy's public test key
 
 ## v0.2.6
 

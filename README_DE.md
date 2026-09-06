@@ -13,7 +13,8 @@ LHPC plus **neun Stacks, bereits installiert und gebaut** — acht Anwendungen u
 LoRaHAM-Funkdaemon. Die Anwendungen teilen sich in zwei Familien, und der Unterschied ist
 rechtlich wichtig:
 
-- **Amateurfunk** — LoRaHAM **Chat**, **iGate**, **Voice**, **KISS/APRS-TNC** und **MeshCom**.
+- **Amateurfunk** — LoRaHAM **Chat**, **Voice**, den **KISS-Adapter**, **Graywolf** (LoRa-APRS)
+  und **MeshCom**.
   Sie senden auf Amateurfunkbändern, identifizieren sich mit deinem Rufzeichen und sind in der
   Regel **unverschlüsselt**. Dafür brauchst du eine Amateurfunklizenz.
 - **Lizenzfrei / verschlüsselt** — **Meshtastic**, **MeshCore**, **Reticulum**. Sie sind für den
@@ -26,14 +27,32 @@ rechtlich wichtig:
 > wird nichts gesendet, bevor du deine Hardware wählst und einen Stack startest — prüfe also
 > zuerst die Regeln, die für dich gelten.
 
-> **Die Voreinstellungen sind öffentlich.** Login (`lhpc` / `lhpc`) und WLAN-Schlüssel
-> (`lorahampi`) sind auf jedem Image gleich, und SSH antwortet in jedem Netz, in dem der Pi
-> hängt. So ist eine frisch geflashte Karte überhaupt benutzbar — ändere beides, bevor die Box
-> irgendwo hinkommt: [Installation](#installation), Schritte 7–8.
+> [!WARNING]
+> **Die Voreinstellungen sind öffentlich — und auf jedem Image dieselben.** Login `lhpc` / `lhpc`,
+> WLAN-Schlüssel `lorahampi`, und SSH antwortet in jedem Netz, in dem der Pi hängt. So ist eine
+> frisch geflashte Karte überhaupt benutzbar — wer sie kennt, dem gehört die Box. **Ändere beides in
+> [Schritt 8](#8--die-zwei-ausgelieferten-voreinstellungen-ändern), bevor die Box deinen Schreibtisch
+> verlässt** und bevor sie in ein Netz kommt, das du mit anderen teilst.
 
 ## Inhalt
 
-- [Installation](#installation) — flashen → im Browser einrichten → auf Sendung, in 12 kurzen Schritten
+- [Was auf dem Image ist](#was-auf-dem-image-ist)
+- [Installation](#installation)
+  - [1 · Herunterladen](#1--herunterladen)
+  - [2 · Flashen](#2--flashen)
+  - [3 · Verbinden](#3--verbinden)
+  - [4 · WebGUI öffnen](#4--webgui-öffnen)
+  - [5 · Hardware + Rufzeichen](#5--hardware--rufzeichen)
+  - [6 · Einen Stack einmal starten — sein Passwort steht dann auf seiner Seite](#6--einen-stack-einmal-starten--sein-passwort-steht-dann-auf-seiner-seite)
+  - [7 · Die Web-Oberflächen von anderen Rechnern erreichbar machen](#7--die-web-oberflächen-von-anderen-rechnern-erreichbar-machen)
+    - [7.1 · Authentifizierung — Zertifikat ausstellen und installieren](#71--authentifizierung--zertifikat-ausstellen-und-installieren)
+    - [7.2 · Freigeben — erst die Stack-Oberflächen, dann die Konsole](#72--freigeben--erst-die-stack-oberflächen-dann-die-konsole)
+    - [7.3 · Aktivieren — auf der Box, per SSH](#73--aktivieren--auf-der-box-per-ssh)
+  - [8 · Die zwei ausgelieferten Voreinstellungen ändern](#8--die-zwei-ausgelieferten-voreinstellungen-ändern)
+  - [9 · Neu verbinden (Lite)](#9--neu-verbinden-lite)
+  - [10 · Ins Heim-WLAN (Lite)](#10--ins-heim-wlan-lite)
+  - [11 · Aktualisieren](#11--aktualisieren)
+  - [12 · Auf Sendung](#12--auf-sendung)
 - [GPS (optional)](#gps-optional)
 - [Fehlerbehebung](#fehlerbehebung)
 - [Standardwerte](#standardwerte)
@@ -56,9 +75,9 @@ Du brauchst: einen Pi (z. B. Zero 2 W), eine SD-Karte, ein Handy oder einen Lapt
 | **desktop** | ein Pi mit Bildschirm. Er kommt in **dein** WLAN/LAN und bootet auf einen Desktop. |
 
 Hol dir `loraham-lhpc-lite.img.xz` **oder** `loraham-lhpc-desktop.img.xz` aus dem
-### → [**aktuellen Release**](https://github.com/makrohard/loraham-images/releases/latest)
+**→ [aktuellen Release](https://github.com/makrohard/loraham-images/releases/latest)**
 
-<details><summary>Download prüfen (optional)</summary>
+<details><summary><em>Download prüfen (optional)</em></summary>
 
 Lade die `.sha256`-Datei zu **deinem** Image aus demselben Release, leg sie neben das Image, dann:
 
@@ -70,12 +89,12 @@ Es sollte `loraham-lhpc-lite.img.xz: OK` erscheinen.
 
 ### 2 · Flashen
 
-**[Raspberry Pi Imager](https://www.raspberrypi.com/software/)** → *Choose OS → Use custom* →
-deine `.img.xz` → *Choose Storage* → deine SD-Karte → **Write**. Die Frage nach der
-„OS customisation" einfach überspringen — dieses Image richtet sich selbst ein. Karte in den Pi,
-Strom dran; der erste Start dauert etwa 1–2 Minuten.
+- **[Raspberry Pi Imager](https://www.raspberrypi.com/software/) → Choose OS → Use custom → deine `.img.xz` → Choose Storage → deine SD-Karte → Write**
 
-<details><summary>Optional: vor dem ersten Start vorkonfigurieren</summary>
+Die Frage nach der „OS customisation" einfach überspringen — dieses Image richtet sich selbst ein.
+Karte in den Pi, Strom dran; der erste Start dauert etwa 1–2 Minuten.
+
+<details><summary><em>Optional: vor dem ersten Start vorkonfigurieren</em></summary>
 
 Nach dem Flashen taucht ein kleines Laufwerk namens **`bootfs`** auf. **Lege** dort eine Datei
 **`lhpc-config.txt`** an — das Image bringt keine mit; ohne sie gelten alle Standardwerte.
@@ -91,6 +110,11 @@ TIMEZONE=Europe/Berlin
 KEYBOARD=de,us
 CALL=DJ0CHE
 ```
+
+Nach einem erfolgreichen ersten Start überschreibt die Box `PASSWORD=` und `AP_PSK=` in dieser Datei
+mit `REDACTED`, damit die Geheimnisse nicht auf der Boot-Partition liegen bleiben — findet ein
+späterer Start dort noch `REDACTED`, bricht er mit einer Fehlermeldung ab; also diese Zeilen
+anpassen oder die Datei löschen, bevor du mit ihr neu startest.
 
 Mit `PASSWORD` und `AP_PSK` wird Schritt 8 später zur reinen Kontrolle, und `CALL` trägt dein
 Rufzeichen schon einmal ein — das **blanke Basisrufzeichen**, ohne SSID und ohne `/P`
@@ -113,13 +137,18 @@ abgewiesen — die Begründung landet als `lhpc-config-error.txt` auf demselben 
 - **Desktop:** am Pi anmelden (**`lhpc`** / **`lhpc`**) und dein Netz beitreten (WLAN-Menü oder
   Ethernet).
 
+Beides sind die öffentlichen Werksvoreinstellungen — geändert werden sie in
+[Schritt 8](#8--die-zwei-ausgelieferten-voreinstellungen-ändern). Mach das, bevor die Box irgendwo
+hinkommt.
+
 **Hinweis für Lite:** Dein Gerät wird bei diesem WLAN **„kein Internet"** melden — das ist so
 gewollt, der AP des Pi hat keinen Uplink; bleib trotzdem verbunden. Und wann immer die Box neu
-startet oder das Netz wechselt (Schritte 8–10), kommt ihr AP von selbst wieder — dein
-Handy/Laptop verbindet sich aber nicht immer von allein neu. Wenn die Konsole nicht mehr
-antwortet: zuerst am eigenen Gerät wieder das WLAN `lhpc-XXXX` auswählen.
+startet oder ihr Netz verliert, kommt ihr AP von selbst wieder — dein Handy/Laptop verbindet sich
+aber nicht immer von allein neu. Wenn die Konsole nicht mehr antwortet: zuerst am eigenen Gerät
+wieder das WLAN `lhpc-XXXX` auswählen. (Schritt 10 ist die Ausnahme: Solange die Box in deinem
+WLAN ist, bleibt ihr AP aus.)
 
-<details><summary>Was der erste Start alles einrichtet</summary>
+<details><summary><em>Was der erste Start alles einrichtet</em></summary>
 
 | | Lite (headless) | Desktop (Bildschirm) |
 |---|---|---|
@@ -128,9 +157,10 @@ antwortet: zuerst am eigenen Gerät wieder das WLAN `lhpc-XXXX` auswählen.
 | Region | `Europe/Berlin` · `DE` · Tastatur `de,us` | `Europe/Berlin` · `DE` · Tastatur `de,us` |
 | WLAN | **eigener AP** `lhpc-XXXX` / `lorahampi` auf `10.42.0.1` | **kommt in deins** (WLAN-Menü oder Ethernet) |
 | Web-Konsole | `https://10.42.0.1:8443` — nur im AP, ohne Passwort | `https://127.0.0.1:8443` — nur auf dem Pi |
-| MeshCom-UI | `10.42.0.1:8444` — nur im AP | `127.0.0.1:8444` — nur auf dem Pi |
-| Meshtastic-UI | `10.42.0.1:8445` — nur im AP | `127.0.0.1:8445` — nur auf dem Pi |
-| Graywolf-APRS-UI | `10.42.0.1:8446` — nur im AP, **eigener Login** | `127.0.0.1:8446` — nur auf dem Pi |
+| MeshCom-UI | `https://10.42.0.1:8444` — nur im AP | `https://127.0.0.1:8444` — nur auf dem Pi |
+| Meshtastic-UI | `https://10.42.0.1:8445` — nur im AP | `https://127.0.0.1:8445` — nur auf dem Pi |
+| Graywolf-APRS-UI | `https://10.42.0.1:8446` — nur im AP, **eigener Login** | `https://127.0.0.1:8446` — nur auf dem Pi |
+| MeshCore-UIs | nicht bereitgestellt — per `lhpc webserver proxy` oder SSH-Tunnel erreichbar | ebenso |
 | SSH | an, in **jedem** Netz des Pi | an, in **jedem** Netz des Pi |
 | Firewall | an; die nativen Ports der Stacks sind zu | an; die nativen Ports der Stacks sind zu |
 | Stacks | installiert & gebaut, **ohne die Desktop-Teile**, keiner läuft | **alle** installiert & gebaut, keiner läuft |
@@ -145,7 +175,7 @@ Tastatur `de,us` (Deutsch, Englisch auf `Alt+Shift`). Zum Ändern `TIMEZONE`, `W
 Einstellung: Außerhalb Deutschlands musst du dein eigenes Land setzen, bevor du funkst.**
 </details>
 
-<details><summary>Stattdessen <code>lhpc-recovery-XXXX</code> zu sehen?</summary>
+<details><summary><em>Stattdessen <code>lhpc-recovery-XXXX</code> zu sehen?</em></summary>
 
 Der Pi hat gebootet, aber der erste Start ist nicht durchgelaufen. Verbinde dich damit
 (Schlüssel `lorahampi` — das Rettungsnetz nutzt immer den Werksschlüssel), dann
@@ -154,31 +184,42 @@ Der Pi hat gebootet, aber der erste Start ist nicht durchgelaufen. Verbinde dich
 `lhpc-XXXX`-WLAN nach ~2 Minuten: Karte neu stecken/neu flashen, Netzteil prüfen.
 </details>
 
-### 4 · Konsole öffnen
+### 4 · WebGUI öffnen
 
 - **Lite:** **`https://10.42.0.1:8443`** — vom Handy/Laptop im AP.
 - **Desktop:** **`https://127.0.0.1:8443`** — im Browser auf dem Pi.
 
-Die Zertifikatswarnung kannst du bestätigen — die Box signiert ihr Zertifikat selbst. Wer die
-Warnung dauerhaft loswerden will, installiert die CA der Box im Browser:
-[Schritt 7](#7--optional-web-oberflächen-per-zertifikat-absichern), Punkte 2–3. Ein Passwort
-gibt es nicht: Die Konsole ist nur aus dem AP (Lite) bzw. nur auf dem Pi selbst (Desktop)
-erreichbar.
+**Lite:** Die Zertifikatswarnung kannst du bestätigen — die Box signiert ihr Zertifikat selbst. Wer
+die Warnung dauerhaft loswerden will, installiert die CA der Box im Browser:
+[Schritt 7.1](#71--authentifizierung--zertifikat-ausstellen-und-installieren), Punkte 2–3.
+**Desktop:** normalerweise keine Warnung — der erste Start hinterlegt die CA der Box im
+vorinstallierten
+Browser. Ein Passwort gibt es in beiden Fällen nicht: Die Konsole ist nur aus dem AP (Lite) bzw.
+nur auf dem Pi selbst (Desktop) erreichbar.
 
 ### 5 · Hardware + Rufzeichen
 
-**Apps → Graywolf APRS → Configure**: dein **Funkmodul** im Dropdown wählen.
+- **Apps → LoRaHAM daemon → Configure → Hardware**<br>
+  Dein Board unter Hardware setup wählen und speichern. Unsicher, welches? Detect prüft ein Band,
+  dabei leuchtet die LED des Boards. Diese Auswahl gibt es nur auf der Seite des Daemons, auf keinem
+  anderen Stack. Fertig, wenn der Hinweis „No radio hardware is configured" im Dashboard
+  verschwunden ist.
 
-**Apps → LoRaHAM Pi Control → Global operator callsign**: dein **blankes Basisrufzeichen**
-eintragen (z. B. `G0ABC` — ohne SSID, ohne `/P`). Es liegt auf der Zeile der Konsole selbst,
-nicht auf einer Stack-Seite. Lizenzpflichtige Stacks (Chat, iGate, Voice, Graywolf, MeshCom)
-erben es, solange ihr eigenes Rufzeichenfeld leer ist; Graywolfs eigenes Feld trägt die
-APRS-Variante mit `-SSID` (z. B. `G0ABC-10`) und überschreibt es. Meshtastic und MeshCore erben
-nie ein Rufzeichen — jeden Knoten auf seiner eigenen Configure-Seite benennen. Ein Stack ohne
-auflösbare Identität startet nicht. Gesendet wird noch nichts — und auch später erst, wenn du
-einen Stack startest.
+- **Apps → LoRaHAM Pi Control → Global operator callsign**<br>
+  Dein blankes Basisrufzeichen eintragen (z. B. `G0ABC` — ohne SSID, ohne `/P`). Es liegt auf der
+  Zeile der Konsole selbst, nicht auf einer Stack-Seite. Lizenzpflichtige Stacks (Chat, Voice,
+  Graywolf, MeshCom) erben es, solange ihr eigenes Rufzeichenfeld leer ist; Graywolfs eigenes Feld
+  trägt die APRS-Variante mit `-SSID` (z. B. `G0ABC-10`) und überschreibt es. Ein Stack ohne
+  auflösbare Identität startet nicht; die Ablehnung bringt dich direkt zur betroffenen Zeile in den
+  Settings des Stacks.
 
-<details><summary>CLI</summary>
+- **Apps → *Stack* → Configure**<br>
+  Nur für Meshtastic und MeshCore, die nie ein Rufzeichen erben: jedem Knoten hier seinen eigenen
+  Namen geben.
+
+Gesendet wird noch nichts — und auch später erst, wenn du einen Stack startest.
+
+<details><summary><em>CLI</em></summary>
 
 ```bash
 lhpc hardware                        # list the boards
@@ -187,7 +228,7 @@ lhpc config operator --callsign G0ABC        # dein EIGENES Basisrufzeichen
 
 # Meshtastic und MeshCore erben es nie — jeden Knoten vor dem Start benennen:
 lhpc config meshtastic node_name "G0ABC node"
-lhpc config meshtastic node_short GABC       # maximal 4 Zeichen
+lhpc config meshtastic node_short GABC       # maximal 4 Bytes
 lhpc config meshcore node_name "G0ABC node"
 ```
 Das Operator-Rufzeichen ist global — lizenzpflichtige Stacks erben es, solange ihr eigenes
@@ -195,120 +236,204 @@ Rufzeichenfeld leer ist. Ohne auflösbare Identität startet ein Stack nicht, al
 setzen.
 </details>
 
-<details><summary>Funkmodule & SPI</summary>
+<details><summary><em>Funkmodule & SPI</em></summary>
 
 | `lhpc hardware` | Board | Bänder |
 |---|---|---|
 | `loraham` | LoRaHAM-Doppelmodul (SX1278 + RFM95) | 433 + 868 |
-| `uputronics` | Uputronics dual (CE0 + CE1) | 433 + 868 |
-| `uputronics-433` / `uputronics-868` | Uputronics einzeln | 433 / 868 |
+| `uputronics` | Uputronics dual (CE0 433 + CE1 868) | 433 + 868 |
+| `uputronics-x` | Uputronics dual, Module gekreuzt (CE0 868 + CE1 433) | 433 + 868 |
+| `uputronics-433` / `uputronics-868` | Uputronics 433 (CE0) / Uputronics 868 (CE1) | 433 / 868 |
 | `waveshare-433` / `waveshare-868` | Waveshare SX1262 | 433 / 868 |
 
 Beide Images liefern SPI als **`soft-cs`** aus (`dtparam=spi=on` + `dtoverlay=spi0-0cs`) — genau
 das, was jedes Board oben braucht: Die Funkmodule steuern ihre Chip-Selects selbst als GPIOs.
-Ändere das nur, wenn dein Board wirklich Kernel-Chip-Selects verwendet:
+Ändere das nur, wenn dein Board wirklich Kernel-Chip-Selects verwendet — entferne dafür zuerst die
+Zeile `dtoverlay=spi0-0cs` aus `/boot/firmware/config.txt`, sonst verweigert das Skript den Dienst
+und sagt dir das auch:
 ```bash
 sudo bash ~/loraham-pi-control/src/loraham-pi-control/bootstrap-deps.sh --spi-mode hardware-cs
 ```
 </details>
 
-### 6 · Graywolf einmal starten
+### 6 · Einen Stack einmal starten — sein Passwort steht dann auf seiner Seite
 
-**Apps → Graywolf APRS → Start.** Beim ersten Start erzeugt die App ihr **eigenes
-Login-Passwort** — einloggen musst du dich jetzt **nicht**; einmal starten genügt.
-**Apps → Graywolf APRS → Password** zeigt das Konto und einen kopierbaren Befehl, der das
-Passwort ausgibt — den führst du in Schritt 8 aus. (Rufzeichen vergessen? Die
-Start-Bestätigungsseite fragt danach.)
+Ein Stack mit eigenem Login legt es beim **ersten Start** an, danach zeigt die Konsole den Wert.
+Einmal starten genügt; einloggen musst du dich jetzt noch nicht. Ab Werk gilt das für Graywolf —
+MeshCore legt sein Dashboard-Passwort erst in einem Repeater-Modus an, und MeshComs HMAC braucht
+eine Quellinstallation (beides steht in der Tabelle und darunter).
 
-<details><summary>CLI</summary>
+- **Apps → *Stack* → Start**<br>
+  Mit Graywolf starten auch der LoRaHAM KISS TNC und der LoRaHAM-Daemon, von denen er abhängt; dass
+  drei Dinge hochkommen, ist normal und kein Fehler. Abgelehnt wegen fehlendem Rufzeichen oder
+  Knotennamen? Du landest in den Settings des Stacks, die betroffene Zeile ist markiert — ausfüllen
+  und erneut starten.
+
+- **Apps → *Stack* → Password**<br>
+  Konto und Passwort, mit Kopierknopf.
+
+| Stack | Login | Wo es liegt |
+|---|---|---|
+| **Graywolf APRS** | `admin` | `state/graywolf/graywolf-admin.txt` — Graywolf legt es beim ersten Start selbst an |
+| **MeshCore**, Repeater-Dashboard | `admin` | `config/secrets/openhop_repeater_admin.txt` — entsteht, sobald **Mode** auf `chat+repeater` oder `repeater` steht; vorher sagt der Abschnitt Password genau das |
+| **MeshCom** | HMAC-Passwort, kein Web-Login | `config/secrets/xr_pw` — nur über die HMAC-Aktionen des Stacks änderbar, nie durch Bearbeiten der Datei |
+
+<details><summary><em>CLI</em></summary>
 
 ```bash
 lhpc stack start graywolf
 ```
+Kein Befehl gibt ein Passwort aus — der Wert landet bewusst weder im Log noch in einer API. Im
+Terminal liest du die Datei direkt:
+```bash
+cat ~/loraham-pi-control/state/graywolf/graywolf-admin.txt
+```
 </details>
 
-<details><summary>Warum Graywolf einen eigenen Login hat · was auf Lite fehlt</summary>
+<details><summary><em>MeshComs HMAC · was auf Lite fehlt</em></summary>
 
-Graywolf ist die einzige der bereitgestellten Oberflächen mit eigenem Konto — das Passwort
-entsteht beim ersten Start und liegt in `state/graywolf/graywolf-admin.txt` (nur auf dem Pi
-lesbar). Konsole und die anderen Oberflächen haben keinen eigenen Login; die sichert erst
-Schritt 7 ab.
+Das Image installiert MeshCom über den **Binary**-Kanal, und diese veröffentlichte Firmware ist mit
+**leerem** HMAC-Passwort gebaut — die HMAC-Aktionen werden deshalb abgelehnt, bis du MeshCom aus den
+Quellen neu installierst.
 
-Auf **Lite** sind die drei Teile, die einen Desktop brauchen, bewusst nicht gebaut — Voice,
-MeshCores Node-Manager-GUI und Reticulums Sideband. Sie melden `not-applicable`; das ist kein
-Fehler. Desktop hat alle drei.
+Auf **Lite** sind die zwei Teile, die einen Desktop brauchen, bewusst nicht gebaut — die GTK-App von
+LoRaHAM Voice und Reticulums Sideband. Sie melden `not-applicable`; das ist kein Fehler. Desktop hat
+beide.
 </details>
 
-### 7 · Optional: Web-Oberflächen per Zertifikat absichern
+### 7 · Die Web-Oberflächen von anderen Rechnern erreichbar machen
 
-Mach das immer dann, wenn andere die Oberflächen erreichen können — auf **Lite** ist das ab Werk
-so (jeder im AP), auf jeder Box, sobald du die Konsole ins LAN stellst. Aus „kein Passwort" wird
-damit „nur Browser mit deinem Zertifikat".
+**Headless-Boxen brauchen das, Boxen mit Bildschirm oft nicht.** Auf **Lite** gibt es kein Display,
+ein Browser auf einem anderen Rechner ist also der einzige Weg hinein — und ab Werk liegen die
+Oberflächen ohne Passwort im AP, genau das schließt dieser Schritt. Auf **Desktop** kannst du ihn
+komplett überspringen und im Browser auf dem Pi arbeiten: lokal bleiben ist eine völlig gute
+Antwort, und außerhalb des Pi lauscht nichts, solange du nichts änderst.
 
-1. **Apps → LoRaHAM Pi Control → Webserver (HTTPS / mTLS) → Certificates → Issue client cert**:
-   Label `lhpc-laptop` → **Issue** → **die Einmal-Passphrase kopieren** — sie wird nur einmal
-   angezeigt.
-2. Derselbe **Certificates**-Abschnitt zeigt jetzt zwei Kopierboxen, Adresse und Pfade bereits
-   eingesetzt — *„Fetch an issued client certificate (.p12) to your PC"* und *„Fetch the server
-   trust (CA) to your PC"*. Beide auf **deinem Rechner** einfügen (im AP lauten sie):
+Der Weg nach draußen besteht aus drei Teilen: dich per Zertifikat ausweisen, die Freigabe-Richtlinie
+setzen, sie auf der Box aktivieren. In dieser Reihenfolge — das Zertifikat muss auf deinem Rechner
+sein, **bevor** du die Richtlinie umstellst, sonst sperrst du dich aus.
+
+#### 7.1 · Authentifizierung — Zertifikat ausstellen und installieren
+
+- **Apps → LoRaHAM Pi Control → Webserver (HTTPS / mTLS) → Certificates → Issue client cert**<br>
+  Ein Label vergeben, etwa `lhpc-laptop`, und auf Issue drücken. **Die Einmal-Passphrase jetzt
+  kopieren** — sie wird genau einmal angezeigt, ist danach nicht wiederherstellbar, und du brauchst
+  sie beim Import der `.p12`. Verloren, oder die Datei ist irgendwo gelandet, wo sie nicht
+  hingehört? Dann das Zertifikat widerrufen und ein neues ausstellen; sonst ändert sich nichts.
+
+Derselbe Certificates-Abschnitt zeigt danach zwei Kopierboxen, mit deiner Adresse und den fertigen
+Pfaden. Beide auf deinem eigenen Rechner einfügen — im AP lauten sie:
+
+```bash
+scp lhpc@10.42.0.1:/home/lhpc/loraham-pi-control/config/tls/exports/lhpc-laptop.p12 .
+scp lhpc@10.42.0.1:/home/lhpc/loraham-pi-control/config/tls/server-ca/ca.crt lhpc-server-ca.crt
+```
+
+Am Handy bekommst du die CA über den **Download-ca.crt**-Link im selben Abschnitt. Die `.p12` hat
+abseits des Pi absichtlich keinen Download-Link, weil sie einen privaten Schlüssel enthält — hol sie
+mit einer SFTP-fähigen App (gleiche Adresse, gleicher Benutzer und Pfad wie im `scp`-Befehl oben),
+oder erst auf einen Rechner und von dort aufs Handy per AirDrop, Mail oder USB, und behandle sie wie
+eine Schlüsseldatei.
+
+Beide im Browser installieren, mit den Anleitungen unten: die CA als Zertifizierungsstelle und die
+`.p12` als dein eigenes Zertifikat — nach dessen Passphrase wird gefragt.
+
+#### 7.2 · Freigeben — erst die Stack-Oberflächen, dann die Konsole
+
+- **Apps → LoRaHAM Pi Control → Webserver (HTTPS / mTLS) → Stacks WebGUIs**<br>
+  Fünf Felder, dann Apply: **Access** `lan` (wer die Proxys erreichen darf), **Scheme** `https`
+  (http erzwingt no-auth, https hält die Zertifikats-Anmeldung offen), **Access mode**
+  `local-open-remote-auth`, **Allowed CIDRs** das Netz, aus dem du kommst — z. B. `192.168.1.0/24`,
+  für lan und public Pflicht — und **Confirm** `enable-remote`. Eine Richtlinie deckt jede
+  Stack-Oberfläche ab, die Ports bleiben pro Seite; die Einzel-Panels bleiben für Ausnahmen.
+  (`enable-remote-danger` ist die Phrase für die riskanteren Fälle — öffentlicher Listener, gar
+  keine Anmeldung oder unverschlüsseltes HTTP.)
+
+- **Apps → LoRaHAM Pi Control → Webserver (HTTPS / mTLS) → LHPC WebGUI**<br>
+  Dieselben Werte für Scheme, Access mode, Allowed CIDRs und Confirm, dazu **Bind** `0.0.0.0`, damit
+  sie über Loopback hinaus lauscht. Die Konsole zuletzt: Es ist die Seite, auf der du gerade
+  arbeitest.
+
+#### 7.3 · Aktivieren — auf der Box, per SSH
+
+Das Image liefert die verwaltete Firewall bereits angewendet aus, die Freigabe hängt also daran:
+Neue Ports hinterlassen **ausstehende Änderungen**, und bis die angewendet sind, kommen die Listener
+nicht hoch. `ssh lhpc@10.42.0.1`, dann:
+
+1. **Die verwaltete Firewall anwenden.** Die Konsole zeigt denselben Befehl:
 
    ```bash
-   scp lhpc@10.42.0.1:/home/lhpc/loraham-pi-control/config/tls/exports/lhpc-laptop.p12 lhpc-laptop.p12
-   scp lhpc@10.42.0.1:/home/lhpc/loraham-pi-control/config/tls/server-ca/ca.crt lhpc-server-ca.crt
+   sudo bash ~/loraham-pi-control/config/files/firewall/firewall-apply.sh
    ```
-   **Am Handy**: Die CA bekommst du über den **Download-ca.crt**-Link im selben Abschnitt. Die
-   `.p12` hat abseits des Pi absichtlich keinen Download-Link (sie enthält einen privaten
-   Schlüssel) — hol sie mit einer SFTP-fähigen App (gleiche Adresse, gleicher Benutzer und Pfad
-   wie im `scp`-Befehl oben), oder erst auf einen Rechner und von dort aufs Handy (AirDrop,
-   Mail, USB) — und behandle sie wie eine Schlüsseldatei.
-3. Beide im Browser installieren (Anleitungen unten): die CA als *Zertifizierungsstelle*, die
-   `.p12` als *dein* Zertifikat (sie fragt nach der Einmal-Passphrase aus Punkt 1).
-4. Für jeden der Stacks **MeshCom**, **Meshtastic**, **Graywolf**:
-   **Apps → *Stack* → Webserver (web UI proxy) → Settings**: **Access mode →
-   `local-open-remote-auth`**, in **Confirm phrase** `enable-remote` eintippen → **Apply**.
-5. Dasselbe für die Konsole selbst, **zuletzt**:
-   **Apps → LoRaHAM Pi Control → Webserver (HTTPS / mTLS) → Settings**: **Access mode →
-   `local-open-remote-auth`**, Confirm phrase `enable-remote` → **Apply**.
-   Seite neu laden — der Browser fragt, welches Zertifikat er vorzeigen soll. Wer keins hat,
-   wird abgewiesen.
+2. **Das Apply zu Ende bringen.** Wurde Apply vorher abgelehnt, weil die Firewall ausstand, drück es
+   im Panel erneut — oder hier `lhpc webserver apply`; das prüft und aktiviert die Listener.
+3. **Die Konsole nur neu starten, falls sie nicht zurückkommt.** Apply startet das Frontend
+   normalerweise selbst über den verwalteten Restart-Watcher:
 
-<details><summary>Zertifikat installieren — Linux</summary>
+   ```bash
+   systemctl --user restart lhpc-nginx lhpc-web
+   ```
 
-**Firefox** (eigener Speicher): `about:preferences#privacy` → *Zertifikate anzeigen* → **Ihre
-Zertifikate** → *Importieren* für die `.p12`; **Zertifizierungsstellen** → *Importieren* für
-`ca.crt`, Haken bei „Dieser CA vertrauen, um Websites zu identifizieren".
-**Chrome/Chromium** (NSS-Speicher):
+LHPC fasst deine eigene Firewall nie an, und ein Port am Router bleibt deine Sache —
+[`docs/firewall.md`](https://github.com/makrohard/loraham-pi-control/blob/main/docs/firewall.md)
+(englisch).
+
+Seite neu laden — der Browser fragt jetzt, welches Zertifikat er vorzeigen soll; wer keins hat, wird
+abgewiesen. **Auf dem Pi selbst** bleibt die Konsole in beiden Fällen offen.
+
+*Nur zum Debuggen, oder gar nichts freigeben?* Ein SSH-Tunnel erreicht die Konsole und jede
+Stack-Oberfläche, ohne auf der Box etwas zu ändern:
+[`docs/ssh-tunnel.md`](https://github.com/makrohard/loraham-pi-control/blob/main/docs/ssh-tunnel.md)
+(englisch).
+
+<details><summary><em>Zertifikat installieren — Linux</em></summary>
+
+- **Firefox → about:preferences#privacy → Zertifikate anzeigen → Ihre Zertifikate → Importieren**<br>
+  Die `.p12`
+- **Firefox → about:preferences#privacy → Zertifikate anzeigen → Zertifizierungsstellen → Importieren**<br>
+  `ca.crt`, mit Haken bei „Dieser CA vertrauen, um Websites zu identifizieren"
+
+**Chrome/Chromium** (NSS-Speicher — Chrome und ältere Chromium nutzen `~/.pki/nssdb`,
+Chromium ab 150 `~/.local/share/pki/nssdb`; nimm den, den dein Browser hat):
 ```bash
 certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n lhpc-ca -i ca.crt
 pk12util -d sql:$HOME/.pki/nssdb -i lhpc-laptop.p12
 ```
 </details>
 
-<details><summary>Zertifikat installieren — Windows</summary>
+<details><summary><em>Zertifikat installieren — Windows</em></summary>
 
-Doppelklick auf `ca.crt` → *Zertifikat installieren* → **Vertrauenswürdige
-Stammzertifizierungsstellen**. Doppelklick auf die `.p12` → in **Eigene Zertifikate**
-importieren (Passphrase eingeben). Firefox-Nutzer importieren beides stattdessen in Firefox'
-eigener Zertifikatsverwaltung.
+- **Doppelklick auf `ca.crt` → Zertifikat installieren → Vertrauenswürdige Stammzertifizierungsstellen**
+- **Doppelklick auf die `.p12` → Eigene Zertifikate**<br>
+  Die Passphrase wird abgefragt
+
+Firefox-Nutzer importieren beides stattdessen in Firefox' eigener Zertifikatsverwaltung.
 </details>
 
-<details><summary>Zertifikat installieren — Android</summary>
+<details><summary><em>Zertifikat installieren — Android</em></summary>
 
-Einstellungen → Sicherheit → *Verschlüsselung & Anmeldedaten* → *Zertifikat installieren* —
-`ca.crt` unter **CA-Zertifikat**, die `.p12` unter **VPN- & App-Nutzerzertifikat**.
+- **Einstellungen → Sicherheit → Verschlüsselung & Anmeldedaten → Zertifikat installieren → CA-Zertifikat**<br>
+  `ca.crt`
+- **Einstellungen → Sicherheit → Verschlüsselung & Anmeldedaten → Zertifikat installieren → VPN- & App-Nutzerzertifikat**<br>
+  Die `.p12`
 </details>
 
-<details><summary>Zertifikat installieren — iPhone / iPad</summary>
+<details><summary><em>Zertifikat installieren — iPhone / iPad</em></summary>
 
-Beide Dateien aufs Gerät schicken (AirDrop/Mail), jedes Profil installieren (Einstellungen →
-*Profil geladen*), abschließen unter Einstellungen → Allgemein → *VPN & Geräteverwaltung* — und
-für die CA zusätzlich volles Vertrauen aktivieren unter Einstellungen → Allgemein → Info →
-*Zertifikatsvertrauenseinstellungen*.
+Beide Dateien aufs Gerät schicken (AirDrop oder Mail), dann:
+
+- **Einstellungen → Profil geladen**<br>
+  Jedes Profil installieren
+- **Einstellungen → Allgemein → VPN & Geräteverwaltung**<br>
+  Installation abschließen
+- **Einstellungen → Allgemein → Info → Zertifikatsvertrauenseinstellungen**<br>
+  Volles Vertrauen für die CA
 </details>
 
-<details><summary>CLI</summary>
+<details><summary><em>CLI</em></summary>
 
-Auf dem Pi (`ssh lhpc@10.42.0.1`):
+Auf dem Pi (`ssh lhpc@10.42.0.1`). Die Richtlinie für alle Stacks auf einmal ist eine Funktion der
+Konsole; aus der Shell setzt du jede Seite einzeln, die Liste entspricht `PROXY_STACKS`:
 ```bash
 lhpc webserver cert issue lhpc-laptop        # prints a ONE-TIME passphrase — record it now
 lhpc webserver cert export lhpc-laptop ~/lhpc-laptop.p12
@@ -316,7 +441,9 @@ lhpc webserver proxy meshcom    --auth local-open-remote-auth --confirm-phrase e
 lhpc webserver proxy meshtastic --auth local-open-remote-auth --confirm-phrase enable-remote
 lhpc webserver proxy graywolf   --auth local-open-remote-auth --confirm-phrase enable-remote
 lhpc webserver expose --cidr 10.42.0.0/24 --access-mode local-open-remote-auth --confirm-phrase enable-remote
-lhpc webserver apply
+sudo bash ~/loraham-pi-control/config/files/firewall/firewall-apply.sh   # Gate: ohne das keine Freigabe
+lhpc webserver apply                                                     # prüfen + aktivieren
+systemctl --user restart lhpc-nginx lhpc-web                             # nur falls sie nicht zurückkommt
 ```
 Auf deinem Rechner — eine Datei pro Befehl, **niemals** zu einem `scp` zusammenfassen:
 ```bash
@@ -325,7 +452,7 @@ scp lhpc@10.42.0.1:loraham-pi-control/config/tls/server-ca/ca.crt .
 ```
 </details>
 
-<details><summary>Konsole aus einem anderen Netz erreichen (LAN)</summary>
+<details><summary><em>Konsole aus einem anderen Netz erreichen (LAN)</em></summary>
 
 Ist das Zertifikat installiert, ist ein weiteres Netz ein einziger Befehl auf dem Pi (`--cidr`
 pro Bereich wiederholen) — auf **Lite** erledigt das Network-Panel das für dich, wenn du deinem
@@ -341,18 +468,24 @@ eines zurück. Einen Port am Router öffnen bleibt deine Sache — LHPC fasst we
 noch deine eigene Firewall an.
 </details>
 
-### 8 · Passwörter — einmal ins Terminal
+### 8 · Die zwei ausgelieferten Voreinstellungen ändern
 
-Beide Voreinstellungen sind öffentlich und auf jedem Image gleich, und SSH antwortet in jedem
-Netz, in dem der Pi hängt:
+> [!IMPORTANT]
+> Das ist der eine Schritt, den du nicht überspringen solltest. Bis dahin weiß jeder, der dieses
+> Projekt kennt, wie er sich auf deiner Box anmeldet.
+
+Beide sind öffentlich und auf jedem Image gleich, und SSH antwortet in jedem Netz, in dem der Pi
+hängt:
 
 ```bash
 ssh lhpc@10.42.0.1                                                 # Passwort: lhpc
-cat ~/loraham-pi-control/state/graywolf/graywolf-admin.txt         # dein Graywolf-Login — kopieren
 passwd                                                             # neues Benutzerpasswort
 sudo nmcli connection modify lhpc-ap wifi-sec.psk 'your-new-key'   # nur Lite: neuer WLAN-Schlüssel, 8+ Zeichen
 sudo nmcli connection up lhpc-ap                                   # trennt deine Verbindung — so gewollt
 ```
+
+`sudo` fragt nach dem Passwort, das du gerade gesetzt hast. Die Stack-Logins aus Schritt 6 bleiben
+davon unberührt.
 
 - **Desktop:** statt `ssh` die **Terminal**-App öffnen und die beiden `nmcli`-Zeilen weglassen.
 
@@ -363,14 +496,21 @@ fragt die Konsole jetzt nach deinem Zertifikat.
 
 ### 10 · Ins Heim-WLAN *(Lite)*
 
-**Apps → LoRaHAM Pi Control → Network**: Name und Passwort deines WLANs **eintippen** — solange
-der eigene AP des Pi läuft, gibt es keinen Scan (normal, kein Defekt). Den Haken **„allow
-console from that network"** nur gesetzt lassen, **wenn du Schritt 7 gemacht hast** — ohne
-Zertifikat stünde die Konsole sonst jedem in deinem Netz offen. Den einen kopierbaren
-`sudo`-Befehl, den das Panel zeigt, per SSH ausführen (Port 22 ist dort offen).
+- **Apps → LoRaHAM Pi Control → Network**<br>
+  Den Namen deines WLANs eintippen (solange der eigene AP des Pi läuft, gibt es keinen Scan, das ist
+  normal und kein Defekt) und auf Join drücken.
 
-Der Pi meldet sich unter **`https://lhpc-XXXX.local:8443`** zurück, und sein eigener AP kommt
-von selbst wieder, wann immer dein WLAN wegfällt.
+Nach dem WLAN-Passwort fragt die Bestätigungsseite; sie warnt auch, dass der AP in dem Moment
+weggeht, in dem die Box beitritt: Handy oder Laptop bleiben am toten AP, bis *du* selbst ins eigene
+Netz wechselst. Den Haken **„allow console from that network"** nur gesetzt lassen, **wenn du
+Schritt 7 gemacht hast** — ohne Zertifikat stünde die Konsole sonst jedem in deinem Netz offen.
+Zeigt das Panel danach einen kopierbaren `sudo`-Befehl, führe ihn per SSH aus (Port 22 ist dort
+offen); im Normalfall gibt es keinen.
+
+Der Pi meldet sich unter **`https://lhpc-XXXX.local:8443`** zurück. Sobald das funktioniert, bei
+diesem Netz auf **Prefer** klicken — sonst fällt die Box bei jedem Neustart auf ihren eigenen AP
+zurück. Ein bevorzugtes Netz wird automatisch wieder verbunden; geht es verloren, ist der AP das
+Sicherheitsnetz und die Box versucht es alle 10 Minuten erneut.
 
 - **Desktop:** nichts zu tun — seit Schritt 3 schon in deinem Netz.
 
@@ -386,9 +526,10 @@ ssh lhpc@lhpc-XXXX.local
 sudo apt update && sudo apt full-upgrade -y
 ```
 
-<details><summary>LHPC und Stacks aktualisieren</summary>
+<details><summary><em>LHPC und Stacks aktualisieren</em></summary>
 
-- LHPC: `lhpc self-update` (oder der Ein-Klick-Updater in der Konsole).
+- LHPC: `lhpc self-update --apply` (`lhpc self-update` allein prüft nur), oder der
+  Ein-Klick-Updater in der Konsole.
 - Ein einzelner Stack, nur wenn du eine neuere Version willst als das Image mitbringt:
   `lhpc update <stack>`. Die Stacks sind bereits installiert und gebaut — Aktualisieren ist
   optional, kein Teil der Einrichtung.
@@ -400,10 +541,11 @@ sudo apt update && sudo apt full-upgrade -y
 ### 12 · Auf Sendung
 
 Weitere Stacks starten: **Apps → *Stack* → Start** (oder pro Band über **Home**, das Dashboard).
-Ein Band gehört immer nur einem Stack — einen kollidierenden Start lehnt LHPC ab. Was beim
-Neustart lief, läuft danach von selbst wieder (**Autostart**, ab Werk an).
+Ein Band gehört immer nur einem Stack — ein kollidierender Start geht nicht stillschweigend durch:
+Die Konsole nennt den Besitzer und bietet **Stop owner(s) & start** an. Was beim Neustart lief,
+läuft danach von selbst wieder (**Autostart**, ab Werk an).
 
-<details><summary>CLI</summary>
+<details><summary><em>CLI</em></summary>
 
 ```bash
 lhpc status                      # what is installed and what is running
@@ -433,20 +575,22 @@ Position.
   Debian erkennt USB-Empfänger automatisch (`USBAUTO`), und LHPCs Standardquelle (`auto`) findet
   einen lokalen gpsd von allein — mehr ist nicht zu konfigurieren.
 
-Danach die Position pro Stack einschalten: **Apps → *Stack* → Configure → `use_gps`** → Save
-(gilt ab dem nächsten Start des Stacks).
+Jeder Stack, der eine Position nutzen kann, hat `use_gps` standardmäßig **an** — für eine normale
+Box ist hier also nichts zu tun. Zum Ab- oder Wiedereinschalten für einen Stack:
+**Apps → *Stack* → Configure → `use_gps`** — der Stack muss dafür **gestoppt** sein, danach wieder
+starten.
 
-<details><summary>CLI</summary>
+<details><summary><em>CLI</em></summary>
 
 ```bash
 lhpc gps                                        # show the source (and what auto resolved to)
 lhpc gps --source gpsd                          # explicit: gpsd on this box
 lhpc gps --source nmea --device /dev/ttyACM0    # receiver direct, no gpsd
-lhpc config meshtastic use_gps on               # per stack
+lhpc config meshtastic use_gps on               # pro Stack; der Stack muss gestoppt sein
 ```
 </details>
 
-<details><summary>u-blox-Hinweis: einmal gpsd, immer binär</summary>
+<details><summary><em>u-blox-Hinweis: einmal gpsd, immer binär</em></summary>
 
 gpsd schaltet u-blox-Empfänger in den binären UBX-Modus — und dort **bleiben** sie auch, wenn
 gpsd stoppt. Eine `nmea`-Quelle verweigert dann mit *„device is sending binary, not NMEA"*.
@@ -457,7 +601,7 @@ bis zum ersten Fix; „reachable but no fix" ist eine Warnung, kein Fehler.
 
 ## Fehlerbehebung
 
-<details><summary>Typische Probleme am ersten Tag</summary>
+<details><summary><em>Typische Probleme am ersten Tag</em></summary>
 
 - **Kein `lhpc-XXXX`-WLAN nach ~2 Minuten** — Karte neu stecken/neu flashen, Netzteil prüfen.
   Stattdessen ein **`lhpc-recovery-XXXX`**-Netz: siehe Schritt 3.
@@ -465,17 +609,25 @@ bis zum ersten Fix; „reachable but no fix" ist eine Warnung, kein Fehler.
   `https://10.42.0.1:8443`. *Desktop:* Sie ist nur lokal — `https://127.0.0.1:8443` **auf dem
   Pi** öffnen. Die Warnung zum selbstsignierten Zertifikat bestätigen.
 - **Box ins Heim-WLAN umgezogen?** `10.42.0.1` und die AP-Konsole verschwinden; **SSH bleibt**
-  unter der neuen IP **erreichbar** — genau deshalb kommt das Passwortändern so früh. Wie du die
-  Konsole zurückbekommst: Schritte 7 und 10.
+  unter der neuen IP **erreichbar** — genau deshalb kommt das Passwortändern so früh. Die Box ist
+  dann unter `https://lhpc-XXXX.local:8443` erreichbar; mit gesetztem Haken *„allow console from
+  that network"* folgt die Konsole dem neuen Subnetz von selbst.
+- **Nach einem Neustart wieder auf `lhpc-XXXX`?** So gewollt, solange du bei deinem Netz nicht auf
+  **Prefer** geklickt hast (Schritt 10): ohne das verbindet sich die Box nicht von allein wieder.
+  Neu verbinden, dann Prefer setzen.
+- **`lhpc-XXXX.local` löst nicht auf?** Häufig unter Android, das `.local` gar nicht auflöst — nimm
+  die Adresse, die dein Router der Box gibt, oder geh von einem Rechner aus ran.
 </details>
 
 ## Standardwerte
 
-Nur für die Inbetriebnahme vor Ort — ändere sie (Schritte 7–8):
+Nur für die Inbetriebnahme vor Ort. Login und WLAN-Schlüssel änderst du in **Schritt 8**; die
+regionalen Werte nur in `lhpc-config.txt` vor dem ersten Start (**Schritt 2**) oder später von Hand:
 
 - Benutzer **`lhpc`** / Passwort **`lhpc`**
 - AP **`lhpc-XXXX`** / Schlüssel **`lorahampi`**
-- Rettungs-AP **`lhpc-recovery-XXXX`** / Schlüssel **`lorahampi`** (immer der Werksschlüssel)
+- Rettungs-AP **`lhpc-recovery-XXXX`** / Schlüssel **`lorahampi`** (nur Lite; immer der
+  Werksschlüssel)
 - WLAN-Land **`DE`** · Zeitzone **`Europe/Berlin`** · Tastatur **`de,us`** (Deutsch; `Alt+Shift`
   für Englisch)
 - `XXXX` ist eine gerätespezifische Endung

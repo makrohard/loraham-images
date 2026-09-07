@@ -2,6 +2,16 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.3.0
+
+- Rebuild on `loraham-pi-control` **v0.3.0** (`af819f5`): the `igate` stack is gone and Graywolf is the
+  APRS station, so the image ships **nine** stacks; source pins and the published binaries are
+  unchanged since v0.2.10 (Reticulum 1.5.2, MeshCom firmware 674413c with the QEMU overlay 579e463,
+  Meshtastic v2.7.26). The controller's from-zero install, cross-cutting checks and boot restore were
+  measured on a Zero 2 W before the tag (`docs/live-test.md` in that repo). Image docs ground-truthed
+  (regional settings after first boot, the replayed first boot, the deferred webserver Apply, the
+  prebuilt daemon and meshtasticd, Gate A2 scope).
+
 ## v0.2.10
 
 - Rebuild on `loraham-pi-control` v0.2.10: **pins moved** — Reticulum 1.5.2, the MeshCom firmware

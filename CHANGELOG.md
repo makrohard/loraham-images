@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.3.2
+
+- Rebuild on `loraham-pi-control` **v0.3.2** (`b57fa3f`): internal restructuring of the controller
+  (core service coupling reduced, no behaviour change), CI coverage measurement on. Source pins and
+  binaries unchanged since v0.3.1.
+
 ## v0.3.1
 
 - Rebuild on `loraham-pi-control` **v0.3.1** (`c54a90f`): Meshtastic serves the newest web client

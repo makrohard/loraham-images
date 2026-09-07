@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.3.1
+
+- Rebuild on `loraham-pi-control` **v0.3.1** (`c54a90f`): Meshtastic serves the newest web client
+  (meshtastic/web v2.7.2, pinned and sha256-verified by the controller) from the republished
+  meshtastic binary; source pins unchanged. An image is re-cut whenever a binary is republished.
+
 ## v0.3.0
 
 - Rebuild on `loraham-pi-control` **v0.3.0** (`af819f5`): the `igate` stack is gone and Graywolf is the

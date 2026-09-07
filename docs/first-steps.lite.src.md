@@ -37,7 +37,9 @@ https://github.com/makrohard/loraham-images#install
 - The managed firewall is **already applied**: the stacks' own ports are blocked, so those proxies
   are the only way in. SSH stays reachable everywhere.
 - Regional defaults are **German**: timezone **@TIMEZONE@**, Wi-Fi country **@WIFI_COUNTRY@**,
-  keyboard **@KEYBOARD@** (`Alt+Shift` switches layout). Change any of them in `lhpc-config.txt`.
+  keyboard **@KEYBOARD@** (`Alt+Shift` switches layout). Set them in `lhpc-config.txt` before the
+  first boot; afterwards change them by hand (`sudo timedatectl set-timezone …`,
+  `sudo raspi-config nonint do_wifi_country …`, `/etc/default/keyboard`).
   Wi-Fi country is a regulatory setting — set your own before operating the radio.
   A Pi has no battery clock, so an offline box keeps the time it last knew.
 - **The stacks are already installed and built** — except the two parts that need a desktop

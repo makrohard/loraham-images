@@ -15,7 +15,7 @@ A checklist for the repo owner. What CI enforces vs. what is manual, plus the ho
   disabled — seal fails on a second armed resizer)
 - Gate A2 (throwaway copy, `--private-network`): out-of-box journey — user units, `/healthz`, web
   GUI loads, recovery sshd on all interfaces wherever `SSH_ENABLE=on` (both variants today),
-  stack web-UI proxies configured per `PROXY_STACKS`, daemon start refused, fresh device PKI,
+  stack web-UI proxies configured per `PROXY_STACKS` (Lite only; the Desktop loopback proxies are not asserted), daemon start refused, fresh device PKI,
   swap fixture, firstboot idempotent — plus the **cold-reboot** gate + host-netns-unchanged
 - seal also asserts: all four overlay programs executable, and `lhpc-recovery` +
   `lhpc-recovery-ap` armed and requiring nothing (a failed expansion must still leave a way in)

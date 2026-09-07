@@ -122,7 +122,8 @@ Rufzeichen schon einmal ein — das **blanke Basisrufzeichen**, ohne SSID und oh
 sondern kommt in deins. Alles andere gilt für beide.
 
 Bricht der erste Start unterwegs ab: Datei korrigieren und neu booten — der Pi merkt die
-Änderung und wiederholt die betroffenen Schritte, deine Korrektur greift also wirklich.
+Änderung und wiederholt den gesamten ersten Start (die Geräte-PKI bleibt erhalten), deine
+Korrektur greift also wirklich.
 
 `AP_PSK` braucht 8–63 Zeichen, `WIFI_COUNTRY` deinen Zwei-Buchstaben-Ländercode (z. B. `DE`,
 `US`, `GB`), `TIMEZONE` einen Zonennamen aus `/usr/share/zoneinfo` (z. B. `America/New_York`)
@@ -365,8 +366,9 @@ nicht hoch. `ssh lhpc@10.42.0.1`, dann:
    ```bash
    sudo bash ~/loraham-pi-control/config/files/firewall/firewall-apply.sh
    ```
-2. **Das Apply zu Ende bringen.** Wurde Apply vorher abgelehnt, weil die Firewall ausstand, drück es
-   im Panel erneut — oder hier `lhpc webserver apply`; das prüft und aktiviert die Listener.
+2. **Das Apply zu Ende bringen.** Ein Apply, das vorher wegen der ausstehenden Firewall abgelehnt
+   wurde, wird gemerkt und läuft von selbst zu Ende, sobald die Firewall angewendet ist; nur wenn das
+   Panel es weiter als ausstehend zeigt, drück es erneut — oder hier `lhpc webserver apply`.
 3. **Die Konsole nur neu starten, falls sie nicht zurückkommt.** Apply startet das Frontend
    normalerweise selbst über den verwalteten Restart-Watcher:
 

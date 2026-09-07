@@ -117,7 +117,7 @@ the **bare base call**, no SSID and no `/P` (per-stack variants come later).
 else applies to both.
 
 If first boot fails partway, fix the file and reboot — the Pi notices the change and re-runs the
-affected steps, so your correction actually applies.
+whole first-boot sequence (keeping the device PKI), so your correction actually applies.
 
 `AP_PSK` must be 8–63 characters, `WIFI_COUNTRY` your two-letter code (e.g. `DE`, `US`, `GB`),
 `TIMEZONE` a zone name from `/usr/share/zoneinfo` (e.g. `America/New_York`) and `KEYBOARD` one to
@@ -346,8 +346,9 @@ the firewall with **pending changes**, and until those are applied the listeners
    ```bash
    sudo bash ~/loraham-pi-control/config/files/firewall/firewall-apply.sh
    ```
-2. **Let the Apply finish.** If Apply was refused earlier because the firewall was pending, press it
-   again in the panel — or `lhpc webserver apply` here; that validates and activates the listeners.
+2. **Let the Apply finish.** An Apply refused earlier because the firewall was pending is recorded
+   and completes on its own once the firewall is applied; press it again in the panel — or
+   `lhpc webserver apply` here — only if the panel still shows it pending.
 3. **Restart the console only if it does not come back.** Apply normally restarts the front end
    itself through the managed restart watcher:
 
@@ -610,13 +611,15 @@ The images are distributed free of charge and non-commercially. They aggregate t
 below; each project remains under its own license (notice files ship inside the image).
 
 - **LoRaHAM daemon, chat and Voice** — © **Alexander Walter**
-  ([LoRaHAM project](https://github.com/LoRaHAM)) · GPL-3.0 · built from source from the maintained
-  forks: [LoRaHAM_Daemon](https://github.com/makrohard/LoRaHAM_Daemon) (daemon and chat) and
+  ([LoRaHAM project](https://github.com/LoRaHAM)) · GPL-3.0 · the daemon shipped as the prebuilt
+  `lhpc-binaries` artifact over its source tree, Chat and Voice built from source on the box — from
+  the maintained forks: [LoRaHAM_Daemon](https://github.com/makrohard/LoRaHAM_Daemon) (daemon and chat) and
   [LoRaHAM_Voice](https://github.com/makrohard/LoRaHAM_Voice).
-- **[graywolf](https://github.com/chrissnell/graywolf)** — © Chris Snell, NW5W · GPL-2.0-only.
+- **[graywolf](https://github.com/chrissnell/graywolf)** — © Chris Snell, NW5W · GPL-2.0.
   Shipped as the unmodified upstream package; source for the pinned version is at the link.
 - **[Meshtastic firmware](https://github.com/meshtastic/firmware)** — © Meshtastic contributors ·
-  GPL-3.0 · built from source (the source tree ships in the image).
+  GPL-3.0 · shipped as the prebuilt `lhpc-binaries` artifact, built from the pinned source (whose
+  tree ships in the image).
   **[Meshtastic web client](https://github.com/meshtastic/web)** — GPL-3.0 · shipped as the
   upstream build; source at the link.
 - **[Sideband](https://github.com/markqvist/Sideband)** — © Mark Qvist ·

@@ -160,6 +160,9 @@ are installed explicitly root-owned, so they were never affected.
 - **Cross-repo dependency:** the binary stacks only install when `lhpc-binaries` has artifacts
   matching the resolved `main` manifest pins. If `main` outruns the channel the run fails those
   stacks by design (no `--source pinned` workaround) — rebuild `lhpc-binaries`, then re-run.
+- **A republished binary means a re-cut image:** the artifact is baked into the image, so every
+  `lhpc-binaries` publish (a pin move or a change inside the artifact, such as the Meshtastic web
+  client) is followed by an image milestone and tag — patch releases included.
 
 ## Dependencies to keep an eye on
 - `INVOCATION_ID`-unset operator path (delta-7 focused test): revalidate against new LHPC SHAs.

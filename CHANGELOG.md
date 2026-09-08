@@ -2,6 +2,11 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.3.3
+
+- Rebuild on `loraham-pi-control` **v0.3.3** (`f113028`): documentation only — one canonical owner
+  per subject and the release-matrix rule. Source pins and binaries unchanged since v0.3.1.
+
 ## v0.3.2
 
 - Rebuild on `loraham-pi-control` **v0.3.2** (`b57fa3f`): internal restructuring of the controller

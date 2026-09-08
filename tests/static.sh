@@ -7,6 +7,9 @@ echo "== bash -n (syntax) =="
 scripts=(builder/*.sh overlay/usr/local/sbin/lhpc-* tests/*.sh)
 for f in "${scripts[@]}"; do bash -n "$f" && echo "  ok $f"; done
 
+echo "== binary index check (offline fixtures) =="
+python3 tests/binary-index.py
+
 echo "== shellcheck =="
 if command -v shellcheck >/dev/null 2>&1; then
   # SC1091: sourced files resolved at runtime; SC2154: vars from load_env/config;

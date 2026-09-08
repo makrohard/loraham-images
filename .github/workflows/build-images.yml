@@ -40,6 +40,22 @@ jobs:
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
     steps:
+      # A stale binary index is FATAL an hour into the build, not at the start: provision.sh
+      # runs a flagless `lhpc auto-install --yes`, the binary channel's pins-must-match gate
+      # refuses every artifact whose components differ from the manifest, and auto-install has
+      # no source fallback — so one un-republished pin blocks the stacks that depend on it and
+      # the build dies. images v0.1.8 (2026-08-08) was lost exactly this way. The check is
+      # driven FROM THE MANIFEST (every binary stack, every covered component), because an
+      # index that is merely self-consistent can still be missing what the build will ask for.
+      # It compares against loraham-pi-control MAIN because that is what the build itself
+      # resolves; a small race with the later resolve remains, and provisioning still fails
+      # closed on it.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Binary index can satisfy the manifest pins on loraham-pi-control main
+        run: python3 builder/check-binary-index.py
       - id: m
         run: |
           if [ "${{ github.event_name }}" = workflow_dispatch ] && [ "${{ github.event.inputs.refresh }}" != true ]; then

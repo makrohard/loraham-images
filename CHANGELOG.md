@@ -2,6 +2,13 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## Unreleased
+
+- `precheck` fails the build when the published binary index cannot satisfy the manifest on
+  `loraham-pi-control` `main` — a missing binary stack, a missing covered component, a drifted sha
+  or an unreadable index schema — instead of dying an hour later inside `auto-install`.
+- The changelog entry for a rebuild whose only changed input is the LHPC commit is one line.
+
 ## v0.3.3
 
 - Rebuild on `loraham-pi-control` **v0.3.3** (`f113028`): documentation only — one canonical owner

@@ -134,6 +134,18 @@ are installed explicitly root-owned, so they were never affected.
 ## Routine release
 - Re-run the workflow (dispatch or tag `v*`); artifacts + logs upload; a `v*` tag publishes per
   variant **independently** (Lite can release while Desktop is still red/oversized).
+- **The changelog entry is proportional to the change.** When the only changed input is the
+  `loraham-pi-control` commit — pins, binaries, base and this repo all unchanged — one line is the
+  whole entry: *Rebuild on `loraham-pi-control` vX.Y.Z (`<sha>`); see that repo's changelog.* Write
+  a paragraph only when an image input actually moved (a pin, a republished binary, a base roll or
+  a change here), and say which. The published release bodies are empty by design; this file is
+  milestones, not a second copy of the controller's changelog.
+- **`precheck` refuses a binary index that cannot satisfy the manifest**, before the build starts
+  (`builder/check-binary-index.py`, run offline against fixtures by `tests/static.sh`). It is driven
+  FROM the manifest on `loraham-pi-control` `main` — the same source the build resolves — so a
+  missing binary stack or a missing covered component fails too, not only a drifted sha; the index
+  schema must be exactly 2. That is the failure that cost images v0.1.8 an hour into provisioning;
+  it now costs seconds at the top of the run.
 
 ## Base image roll
 - `BASE_URL`/`BASE_SHA256` are RESOLVED each run (latest official build) and verified together; a

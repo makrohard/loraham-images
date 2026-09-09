@@ -2,3 +2,5 @@ work/
 out/
 *.img
 *.img.xz
+__pycache__/
+*.pyc

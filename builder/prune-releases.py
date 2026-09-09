@@ -38,7 +38,9 @@ MARKER = "AUTO-RELEASE"
 REQUIRED = ("loraham-lhpc-lite.img.xz", "loraham-lhpc-desktop.img.xz",
             "loraham-lhpc-lite.img.xz.sha256", "loraham-lhpc-desktop.img.xz.sha256",
             "provenance-lite.json", "provenance-desktop.json",
-            "components-lite.txt", "components-desktop.txt", "SHA256SUMS")
+            "components-lite.txt", "components-desktop.txt",
+            "packages-lite.txt", "packages-desktop.txt",
+            "SHA256SUMS", "signature.txt")
 
 
 def _version(tag: str):
@@ -65,12 +67,37 @@ def complete_bot_releases(releases: list) -> list:
     return sorted(out)
 
 
+def current_line(releases: list):
+    """The `(major, minor)` of the newest PUBLISHED release, whoever cut it. `None` if there is
+    none.
+
+    Read from every release, not only the bot-made ones: the `.0` that opens a minor line is a
+    maintainer's release, so a rule that only looked at what the bot made could not see the
+    boundary it must stop at. Drafts do not count — an unpublished retry must not move the
+    boundary and start protecting things early.
+    """
+    versions = [_version(rel.get("tagName") or rel.get("tag_name") or "")
+                for rel in releases if not (rel.get("isDraft") or rel.get("draft"))]
+    versions = [v for v in versions if v is not None]
+    return max(versions)[:2] if versions else None
+
+
 def to_delete(releases: list, keep: int) -> list:
-    """Tags of the bot-made complete releases beyond the newest `keep`, oldest first."""
+    """Tags of the deletable releases, oldest first.
+
+    Deletion sweeps down from the newest and STOPS at the minor. Only patches of the current
+    minor line are ever candidates, beyond the newest `keep` of them; the `.0` that opens that
+    line, and everything below it, is kept for good. So the repository always answers "what did
+    this minor ship with", however many patches have come and gone above it.
+    """
     if keep < 1:
         raise ValueError("keep must be at least 1")
-    considered = complete_bot_releases(releases)
-    surplus = considered[:-keep] if len(considered) > keep else []
+    line = current_line(releases)
+    if line is None:
+        return []
+    in_line = [(v, tag) for v, tag in complete_bot_releases(releases)
+               if v[:2] == line and v[2] > 0]
+    surplus = in_line[:-keep] if len(in_line) > keep else []
     return [tag for _v, tag in surplus]
 
 

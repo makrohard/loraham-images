@@ -48,6 +48,43 @@ check("four marked + draft + two hand-made, keep 3 -> the oldest marked goes",
 check("a hand-made release is never deleted, however old",
       [t for t in prune.to_delete(FIXTURE, 1) if t in ("v0.2.9", "v0.3.0")], [])
 
+
+# --- deletion stops at the minor ----------------------------------------------------------
+# The rule is "keep the newest three patches of the current line, and never touch the .0 that
+# opens it or anything below". A plain "newest three overall" gets every case below wrong.
+
+# A new minor has opened. Everything in the OLD line is now below the boundary, so no number of
+# newer releases may reach it — even though only one patch exists above the .0.
+NEXT_MINOR = [
+    rel("v0.3.1"), rel("v0.3.2"), rel("v0.3.3"), rel("v0.3.4"),
+    rel("v0.4.0", bot=False), rel("v0.4.1"),
+]
+check("a new minor puts the whole previous line out of reach",
+      prune.to_delete(NEXT_MINOR, 3), [])
+check("even keeping only one, nothing below the current .0 is touched",
+      prune.to_delete(NEXT_MINOR, 1), [])
+
+# Within the current line, the newest three patches stay and the rest go — the .0 never counts
+# toward the three and is never a candidate.
+DEEP_LINE = [
+    rel("v0.4.0", bot=False),
+    rel("v0.4.1"), rel("v0.4.2"), rel("v0.4.3"), rel("v0.4.4"), rel("v0.4.5"),
+]
+check("in one line, keep the newest three patches and delete the rest",
+      prune.to_delete(DEEP_LINE, 3), ["v0.4.1", "v0.4.2"])
+check("the .0 is not one of the three and is never deleted",
+      [t for t in prune.to_delete(DEEP_LINE, 1) if t == "v0.4.0"], [])
+
+# A bot-cut .0 would still be the boundary, not a candidate: what protects it is its position,
+# not who made it.
+check("a .0 is protected even when the bot cut it",
+      prune.to_delete([rel("v0.5.0"), rel("v0.5.1"), rel("v0.5.2"),
+                       rel("v0.5.3"), rel("v0.5.4")], 2), ["v0.5.1", "v0.5.2"])
+
+# A draft of the next minor must not move the boundary and start protecting the current line.
+check("an unpublished draft does not open a new line",
+      prune.to_delete(DEEP_LINE + [rel("v0.5.0", draft=True)], 3), ["v0.4.1", "v0.4.2"])
+
 check("keep 1 keeps only the newest marked release",
       prune.to_delete(FIXTURE, 1), ["v0.3.1", "v0.3.2", "v0.3.3"])
 

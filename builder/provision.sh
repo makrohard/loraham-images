@@ -236,8 +236,16 @@ as_op "$LHPC_BIN" status --versions > /var/log/lhpc-versions.log 2>&1 || die "lh
 # through LHPC's own verifiers, every artifact against its receipt, and only the components
 # LHPC's own GUI predicate calls unavailable here allowed to be absent.
 say "composition check (LHPC's own identity verifiers and GUI predicate)"
+# lhpc lives in its OWN venv (install.sh: <target>/venv/lhpc), and `lhpc` in ~/.local/bin is a
+# symlink into it — so the check has to run on that interpreter. A bare `python3` would not
+# import lhpc at all.
+# Resolved through the OPERATOR's own shell: `lhpc` in ~/.local/bin is a symlink into that
+# venv, and root's PATH does not contain that directory.
+# shellcheck disable=SC2016  # the command substitution must run in the operator's shell
+LHPC_PY="$(as_op bash -lc 'p=$(command -v lhpc) && dirname "$(readlink -f "$p")"')/python"
+[ -x "$LHPC_PY" ] || die "cannot find the lhpc venv interpreter (looked for $LHPC_PY)"
 as_op env VARIANT="$VARIANT" EXPECTED_LHPC_SHA="${EXPECTED_LHPC_SHA:-}" \
-  /usr/local/sbin/lhpc-check-composition || die "composition check failed"
+  "$LHPC_PY" /usr/local/sbin/lhpc-check-composition || die "composition check failed"
 
 # ---- 9b. Desktop conveniences (Desktop variant only) -----------------------
 # None of this exists on Lite: no lightdm, no pcmanfm, no chromium. The static assets (mdview and

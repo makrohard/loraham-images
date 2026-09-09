@@ -34,8 +34,8 @@ def check(name, got, want):
     print(f"  ok: {name}")
 
 
-# The auditor's fixture: FOUR complete marked releases, plus a draft and two hand-made ones.
-# Keeping three must delete exactly one — the oldest marked release — and nothing else.
+# FOUR complete releases in the current line, plus a draft, the line's .0 and an older
+# release. Keeping three must delete exactly one — the oldest patch — and nothing else.
 FIXTURE = [
     rel("v0.3.1"), rel("v0.3.2"), rel("v0.3.3"), rel("v0.3.4"),
     rel("v0.3.5", draft=True),
@@ -45,8 +45,21 @@ FIXTURE = [
 check("four marked + draft + two hand-made, keep 3 -> the oldest marked goes",
       prune.to_delete(FIXTURE, 3), ["v0.3.1"])
 
-check("a hand-made release is never deleted, however old",
+check("the .0 and an older line are never deleted, however few are kept",
       [t for t in prune.to_delete(FIXTURE, 1) if t in ("v0.2.9", "v0.3.0")], [])
+
+# Authorship does not decide this. The maintainer's rule is about a release's POSITION in the
+# series: a hand-made patch inside the range goes like any other, and the exemptions that remain
+# are the ones with their own reason — the .0, older lines, drafts, incomplete releases.
+HAND_MADE_IN_LINE = [
+    rel("v0.3.0", bot=False),
+    rel("v0.3.1", bot=False), rel("v0.3.2", bot=False), rel("v0.3.3", bot=False),
+    rel("v0.3.4"), rel("v0.3.5"), rel("v0.3.6"),
+]
+check("a hand-made patch inside the range is deleted like any other",
+      prune.to_delete(HAND_MADE_IN_LINE, 3), ["v0.3.1", "v0.3.2", "v0.3.3"])
+check("a hand-made patch counts toward the retained three",
+      prune.to_delete(HAND_MADE_IN_LINE, 6), [])
 
 
 # --- deletion stops at the minor ----------------------------------------------------------

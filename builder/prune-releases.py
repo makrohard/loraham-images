@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""Keep the last N *bot-made* image releases; never touch a hand-made one.
+"""Keep the newest N patch images of the current series; never touch the `.0` or anything older.
 
-An image is cut for every controller release, so releases accumulate. Only the ones an
-automated release produced are pruned, and only when they are COMPLETE:
+An image is cut for every controller release, so releases accumulate. Deletion sweeps down from
+the newest and stops at the `.0` that opens the current major/minor line: neither it nor any
+older line is ever a candidate, so every minor stays answerable however many patches come and go
+above it. Within that line the newest N patches stay and the rest go, by numeric version.
 
-  * **bot-made** — the release carries the `AUTO-RELEASE` asset, which `publish-tag` writes from
-    the tag's own `auto-release:` annotation. A marker on the release, not a guess from the tag
-    name: `v0.3.5` looks identical whoever cut it.
-  * **complete** — not a draft, and carrying both variants with their evidence. An incomplete
-    attempt is exactly what a retry needs to find; deleting it would destroy the retry.
+Who cut a release does not decide this — a hand-made patch inside the range is treated like any
+other. What is exempt is exempt for its own reason:
 
-Everything else — every hand-made release, every draft, every tag — is left alone. Tags are
-never deleted: a tag is a few bytes and it is how `image v0.3.1 carried controller c54a90f`
-stays answerable after the assets are gone.
+  * **a draft** — somebody's retry in progress.
+  * **an incomplete release** — not carrying the publisher's whole asset set. That is exactly
+    what a retry needs to find; deleting it would destroy the retry, and it must not count
+    toward the retained N either.
+  * **a tag** — never deleted. A tag is a few bytes and it is how `image v0.3.1 carried
+    controller c54a90f` stays answerable after the assets are gone.
 
     prune-releases.py --keep 3 < releases.json     # prints the tags to delete, one per line
     prune-releases.py --keep 3 --repo o/r --apply  # asks the API, then deletes them
@@ -30,6 +32,9 @@ import re
 import subprocess
 import sys
 
+# Written from the tag's own `auto-release:` annotation. It no longer decides what may be
+# deleted — the maintainer's rule is about a release's POSITION in the series, not its author —
+# but it still identifies an automated publication in reports and provenance.
 MARKER = "AUTO-RELEASE"
 # What a COMPLETE release carries. Both images, both checksums, both provenance records, both
 # component reports and the sums file — the same set `publish-tag` refuses to publish without.
@@ -52,16 +57,22 @@ def _assets(rel: dict) -> set:
     return {a.get("name") for a in rel.get("assets") or []}
 
 
-def complete_bot_releases(releases: list) -> list:
-    """(version, tag) of every release this prune is allowed to consider, newest last."""
+def prunable_releases(releases: list) -> list:
+    """(version, tag) of every release this prune is allowed to consider, newest last.
+
+    NOT limited to the ones the bot made. The maintainer's rule is about patch-image releases as
+    such: a hand-made patch inside the current series is retained or deleted on its position, not
+    on who cut it. What stays exempt is what has its own reason to be — a draft is somebody's
+    retry in progress, an incomplete release is what a retry looks for, and the `.0` and older
+    lines are excluded by `to_delete`, not here.
+    """
     out = []
     for rel in releases:
         tag = rel.get("tagName") or rel.get("tag_name") or ""
         ver = _version(tag)
         if ver is None or rel.get("isDraft") or rel.get("draft"):
             continue
-        names = _assets(rel)
-        if MARKER not in names or not set(REQUIRED) <= names:
+        if not set(REQUIRED) <= _assets(rel):
             continue
         out.append((ver, tag))
     return sorted(out)
@@ -95,7 +106,7 @@ def to_delete(releases: list, keep: int) -> list:
     line = current_line(releases)
     if line is None:
         return []
-    in_line = [(v, tag) for v, tag in complete_bot_releases(releases)
+    in_line = [(v, tag) for v, tag in prunable_releases(releases)
                if v[:2] == line and v[2] > 0]
     surplus = in_line[:-keep] if len(in_line) > keep else []
     return [tag for _v, tag in surplus]
@@ -142,7 +153,7 @@ def main() -> int:
     # bot-made releases overall, which is the rule this replaced: with an older line still
     # present it named releases from it while keeping every one of them.
     line = current_line(releases)
-    in_line = [tag for v, tag in complete_bot_releases(releases)
+    in_line = [tag for v, tag in prunable_releases(releases)
                if line and v[:2] == line and v[2] > 0]
     kept = [tag for tag in in_line if tag not in doomed]
     where = f"v{line[0]}.{line[1]}" if line else "no released line"

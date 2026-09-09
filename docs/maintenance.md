@@ -148,9 +148,10 @@ are installed explicitly root-owned, so they were never affected.
   stays answerable however many patches come and go above it. The boundary is read from every
   published release, because a `.0` is normally a maintainer's; drafts do not move it.
   Complete means the publisher's whole asset set, so an incomplete attempt neither counts toward
-  the three nor is deleted — it is what a retry looks for. It never touches a hand-made release,
-  a draft, or any tag — a tag is how "image v0.3.1 carried controller c54a90f" stays answerable
-  after the assets are gone. A prune failure is a warning, not a failed release. It reads the
+  the three nor is deleted — it is what a retry looks for. Who cut a release does not decide
+  this: a hand-made patch inside the range goes like any other. It never touches a draft
+  (somebody's retry) or any tag — a tag is how "image v0.3.1 carried controller c54a90f" stays
+  answerable after the assets are gone. A prune failure is a warning, not a failed release. It reads the
   releases through the REST endpoint: `gh release list` has no `assets` field, and asking for one
   fails the call. Retention is bounded per line, not overall: an older line keeps every release
   it had, so total storage grows with the number of minors rather than staying at three.

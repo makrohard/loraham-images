@@ -15,10 +15,12 @@ never deleted: a tag is a few bytes and it is how `image v0.3.1 carried controll
 stays answerable after the assets are gone.
 
     prune-releases.py --keep 3 < releases.json     # prints the tags to delete, one per line
-    prune-releases.py --keep 3 --repo o/r          # asks gh, then deletes them
+    prune-releases.py --keep 3 --repo o/r --apply  # asks the API, then deletes them
 
-The JSON is what `gh release list --json tagName,isDraft,assets` produces, so the decision is
-testable offline against fixtures.
+The JSON is a list of `{tagName, isDraft, assets:[{name}]}`. `gh release list` cannot produce
+that shape — it has no `assets` field, and asking for one makes it exit non-zero, which is how
+this script silently did nothing after the v0.3.7 publish — so the assets come from the REST
+releases endpoint, which returns them with each release.
 """
 from __future__ import annotations
 
@@ -29,7 +31,14 @@ import subprocess
 import sys
 
 MARKER = "AUTO-RELEASE"
-REQUIRED = ("loraham-lhpc-lite.img.xz", "loraham-lhpc-desktop.img.xz", "SHA256SUMS")
+# What a COMPLETE release carries. Both images, both checksums, both provenance records, both
+# component reports and the sums file — the same set `publish-tag` refuses to publish without.
+# A release missing any of it is an incomplete attempt: it must neither count toward the
+# retained three nor be selected for deletion, because it is exactly what a retry looks for.
+REQUIRED = ("loraham-lhpc-lite.img.xz", "loraham-lhpc-desktop.img.xz",
+            "loraham-lhpc-lite.img.xz.sha256", "loraham-lhpc-desktop.img.xz.sha256",
+            "provenance-lite.json", "provenance-desktop.json",
+            "components-lite.txt", "components-desktop.txt", "SHA256SUMS")
 
 
 def _version(tag: str):
@@ -65,6 +74,29 @@ def to_delete(releases: list, keep: int) -> list:
     return [tag for _v, tag in surplus]
 
 
+def fetch(repo: str, pages: int = 5) -> list:
+    """Every release of `repo`, with its assets, through the REST endpoint.
+
+    `gh release list` is not usable here: it has no `assets` JSON field, so asking for one fails
+    the whole call. `gh api` reaches the same endpoint with the same credential and returns the
+    assets inline.
+    """
+    out = []
+    for page in range(1, pages + 1):
+        raw = subprocess.run(
+            ["gh", "api", f"repos/{repo}/releases?per_page=100&page={page}"],
+            capture_output=True, text=True, check=True).stdout
+        batch = json.loads(raw)
+        if not batch:
+            break
+        out.extend({"tagName": r.get("tag_name", ""), "isDraft": bool(r.get("draft")),
+                    "assets": [{"name": a.get("name", "")} for a in r.get("assets", [])]}
+                   for r in batch)
+        if len(batch) < 100:
+            break
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--keep", type=int, default=3)
@@ -74,13 +106,9 @@ def main() -> int:
     args = ap.parse_args()
 
     if args.repo:
-        raw = subprocess.run(
-            ["gh", "release", "list", "--repo", args.repo, "--limit", "200",
-             "--json", "tagName,isDraft,assets"],
-            capture_output=True, text=True, check=True).stdout
+        releases = fetch(args.repo)
     else:
-        raw = sys.stdin.read()
-    releases = json.loads(raw)
+        releases = json.loads(sys.stdin.read())
 
     doomed = to_delete(releases, args.keep)
     kept = [t for _v, t in complete_bot_releases(releases)][-args.keep:]

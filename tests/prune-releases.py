@@ -17,8 +17,7 @@ _spec = importlib.util.spec_from_file_location(
 prune = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(prune)
 
-FULL = ["loraham-lhpc-lite.img.xz", "loraham-lhpc-desktop.img.xz", "SHA256SUMS",
-        "provenance-lite.json", "provenance-desktop.json"]
+FULL = list(prune.REQUIRED)
 
 
 def rel(tag, *, bot=True, draft=False, assets=None):
@@ -58,6 +57,16 @@ check("a draft is never deleted — it is a retry in progress",
 check("an incomplete marked release (Desktop missing) is not prunable",
       prune.to_delete([rel("v0.1.1", assets=["loraham-lhpc-lite.img.xz", "SHA256SUMS"]),
                        rel("v0.1.2"), rel("v0.1.3"), rel("v0.1.4")], 3), [])
+
+# An incomplete release must also not COUNT toward the retained three: it is what a retry looks
+# for, and counting it would push a good release out of the window.
+_no_provenance = [a for a in FULL if a != "provenance-desktop.json"]
+check("an incomplete release neither counts nor is deleted",
+      prune.to_delete([rel("v0.2.1", assets=_no_provenance), rel("v0.2.2"), rel("v0.2.3"),
+                       rel("v0.2.4")], 3), [])
+
+check("the completeness contract is the publisher's own asset set",
+      sorted(prune.REQUIRED) == sorted(FULL), True)
 
 check("nothing to do when there are no more than `keep` marked releases",
       prune.to_delete([rel("v0.1.1"), rel("v0.1.2")], 3), [])

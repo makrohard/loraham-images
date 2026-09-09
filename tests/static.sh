@@ -13,6 +13,9 @@ python3 tests/binary-index.py
 echo "== release retention: only complete bot-made releases, never a hand-made one =="
 python3 tests/prune-releases.py
 
+echo "== composition: Desktop never inherits Lite's GUI omissions =="
+python3 tests/composition-policy.py
+
 echo "== builder python parses (a syntax error here costs a whole image build) =="
 _pyn=0
 for f in builder/*.py; do

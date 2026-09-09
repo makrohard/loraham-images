@@ -143,14 +143,20 @@ are installed explicitly root-owned, so they were never affected.
   latest. The annotation is uploaded as the `AUTO-RELEASE` asset: that marker, not the tag name,
   is what identifies a release as automated.
 - **Retention:** after a complete automated publish, `builder/prune-releases.py` deletes all but
-  the three newest COMPLETE, PUBLISHED, marked releases. It never touches a hand-made release, a
-  draft, or any tag — a tag is how "image v0.3.1 carried controller c54a90f" stays answerable
-  after the assets are gone. A prune failure is a warning, not a failed release.
+  the three newest COMPLETE, PUBLISHED, marked releases. Complete means the publisher's whole
+  asset set — both images, both checksums, both provenance records, both component reports and
+  `SHA256SUMS` — so an incomplete attempt neither counts toward the three nor is deleted; it is
+  what a retry looks for. It never touches a hand-made release, a draft, or any tag — a tag is
+  how "image v0.3.1 carried controller c54a90f" stays answerable after the assets are gone. A
+  prune failure is a warning, not a failed release. It reads the releases through the REST
+  endpoint: `gh release list` has no `assets` field, and asking for one fails the call.
 - **Repairing a published attempt:** dispatch with `publish_to_tag: vX.Y.Z` (and optionally
   `expected_lhpc_sha` as a cross-check). The tag is never moved and the controller identity
-  never changes; the builder is checked out AT that tag, while `image_build_commit` in the
-  provenance records which builder revision actually produced the image — so a repair with a
-  newer builder is visible rather than silent.
+  never changes. By default the builder is checked out AT that tag, so the repair rebuilds what
+  the tag describes. A repair that exists BECAUSE the builder was broken needs the fix, so
+  `builder_ref` selects a different builder revision — and whichever is chosen is both the one
+  that runs and the one recorded as `image_build_commit`. Recording a revision the build did not
+  execute would make the provenance a claim about code that never ran.
 - **Composition is checked inside the image**, not inferred here: `builder/check-composition.py`
   runs against the lhpc the image installed and asks LHPC's own code both questions — which
   components may legitimately be absent (`gui_unavailable_components`, so a Lite image may lack

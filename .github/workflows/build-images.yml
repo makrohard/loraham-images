@@ -16,6 +16,10 @@ on:
         description: "Cross-check for publish_to_tag: the controller commit that tag stands for. Must equal its own `lhpc-commit:` line."
         required: false
         default: ""
+      builder_ref:
+        description: "Builder revision to RUN for a repair (branch, tag or sha). Blank = the tag's own builder. The controller identity never changes either way."
+        required: false
+        default: ""
   push:
     tags: ['v*']
 
@@ -124,13 +128,22 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.precheck.outputs.matrix) }}
     steps:
-      # A repair names an existing tag: build the BUILDER at that tag, so the image is the one
-      # that tag describes. `github.sha` (recorded as image_build_commit) still says which
-      # builder revision actually produced it — a repair with a newer builder is visible, and
-      # never silently changes which controller release the tag stands for.
+      # A repair names an existing tag. By default it runs the builder AT that tag, so the image
+      # is the one that tag describes. A repair that exists BECAUSE the builder was broken needs
+      # the fix, so `builder_ref` selects a different builder revision — and whichever is chosen
+      # is the one actually checked out AND the one recorded as `image_build_commit`. Recording
+      # a revision the build did not run would make the provenance a claim about code that never
+      # executed. The controller identity is fixed by the tag either way.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.inputs.publish_to_tag || github.ref }}
+          ref: ${{ github.event.inputs.builder_ref || github.event.inputs.publish_to_tag || github.ref }}
+      - name: Record the builder revision this job actually runs
+        id: builder
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "builder revision in this job: $sha"
       - name: Assert native arm64 runner
         run: test "$(uname -m)" = aarch64 || { echo "not aarch64 - refuse to emulate"; exit 1; }
       - name: Free disk + install build deps
@@ -145,7 +158,7 @@ jobs:
       - name: Build ${{ matrix.variant }}
         env:
           WORKFLOW_RUN_ID: ${{ github.run_id }}
-          IMAGE_BUILD_COMMIT: ${{ github.sha }}
+          IMAGE_BUILD_COMMIT: ${{ steps.builder.outputs.sha }}
           EXPECTED_LHPC_SHA: ${{ needs.precheck.outputs.expected_lhpc }}
         run: sudo -E env WORK="$PWD/work" OUT="$PWD/out" WORKFLOW_RUN_ID="$WORKFLOW_RUN_ID" IMAGE_BUILD_COMMIT="$IMAGE_BUILD_COMMIT" EXPECTED_LHPC_SHA="$EXPECTED_LHPC_SHA" bash builder/build.sh ${{ matrix.variant }}
       - name: Upload logs (always)

@@ -2,6 +2,20 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## Unreleased
+
+- An image repair now RUNS the builder revision it records: `builder_ref` selects it, the job
+  checks that revision out and `image_build_commit` is what actually ran. It used to check out
+  the tag's builder while recording the dispatch revision, so a repair could never contain the
+  fix it was dispatched for.
+- Retention reads the releases through the REST endpoint. `gh release list` has no `assets`
+  field, so asking for one failed the call and no pruning happened at all. Completeness now
+  means the publisher's whole asset set, so an incomplete attempt neither counts toward the
+  three retained nor is deleted.
+- The GUI omission allowance is Lite's alone. Desktop may omit nothing, must have its toolkit,
+  and must have BUILT its GUI components — Voice's GTK app shares a checkout with the terminal
+  variant, so a matching source never proved it.
+
 ## v0.3.7
 
 - Rebuild on `loraham-pi-control` **v0.3.7** (`76b6ad2`); see that repo's changelog.

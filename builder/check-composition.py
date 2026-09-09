@@ -6,8 +6,10 @@ It asks LHPC's own code the two questions this builder must never answer for its
 
   * **which components may be absent here** — `gui_unavailable_components()`, the one predicate
     behind every GUI skip. A Lite image has no GTK/X11 toolkit, so the components that need one
-    (Sideband, the Voice GTK variant) are legitimately absent; Desktop installs them. Anything
-    else missing is a defect, and a `differs` on any installed managed source is a defect.
+    are legitimately absent there; that allowance is LITE'S ALONE. A Desktop image installs the
+    toolkit, so on Desktop nothing may be absent, and the predicate naming anything at all is
+    itself the defect — it would mean the toolkit this variant exists to provide is missing.
+    Anything else absent is a defect, and a `differs` on any installed managed source is one.
   * **is this component really that commit** — `source_registry.verify_identity()` for a live
     checkout and `binary_receipt.verify_files()` for an artifact. The readable
     `lhpc status --versions` report stays beside this as evidence; it is not the check.
@@ -22,6 +24,35 @@ import subprocess
 import sys
 
 REPORT = os.environ.get("COMPOSITION_REPORT", "/var/log/lhpc-composition.json")
+
+
+def omission_allowance(variant: str, unavailable: set) -> tuple:
+    """(what may be absent here, why this variant is itself broken).
+
+    Lite has no GTK/X11 toolkit, so LHPC's own predicate naming components is normal and they
+    may be absent. Desktop exists to provide that toolkit: there the same answer is the defect,
+    and nothing may be absent. Applying Lite's allowance to Desktop would let a Desktop image
+    ship without the applications it is built for.
+    """
+    if variant == "desktop":
+        problem = (f"GUI components are unavailable on DESKTOP "
+                   f"({', '.join(sorted(unavailable))}) — the toolkit is missing"
+                   if unavailable else "")
+        return set(), problem
+    return set(unavailable), ""
+
+
+def _needs_display(comp) -> bool:
+    """LHPC's own definition: a component carrying a GUI-only requirement is a GUI app."""
+    return any(getattr(r, "gui", False) for r in (getattr(comp, "requires", None) or ()))
+
+
+def _built(svc, comp) -> bool:
+    """LHPC's own build predicate — the artifact, not the checkout."""
+    try:
+        return bool(svc.is_built(comp))
+    except Exception:                                              # noqa: BLE001
+        return False
 
 
 def main() -> int:
@@ -43,9 +74,13 @@ def main() -> int:
         if spec and binary_receipt.receipt_state(paths, stack.id)[0] == "valid":
             from_binary.update(spec.covers)
 
+    desktop = variant == "desktop"
     rows, bad = [], []
     for stack in svc.stacks():
-        skippable = set(svc.gui_unavailable_components(stack))
+        skippable, broken = omission_allowance(
+            variant, set(svc.gui_unavailable_components(stack)))
+        if broken:
+            bad.append(f"{stack.id}: {broken}")
         for comp in stack.components:
             spec = getattr(comp, "source", None)
             pin = getattr(spec, "pin_commit", "") if spec else ""
@@ -54,6 +89,11 @@ def main() -> int:
             dest = paths.resolve_source(spec.path)
             row = {"stack": stack.id, "component": comp.id, "pin": pin,
                    "gui_optional_here": comp.id in skippable}
+            if desktop and _needs_display(comp) and not _built(svc, comp):
+                # Voice's GTK app shares its checkout with the terminal variant, so a matching
+                # source proves nothing about the GUI having been built. Ask for its artifact.
+                bad.append(f"{stack.id}/{comp.id}: a GUI component that Desktop must build is "
+                           f"not built")
             if comp.id in from_binary:
                 row["state"] = "from-artifact"
                 rows.append(row)

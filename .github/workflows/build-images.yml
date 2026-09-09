@@ -8,19 +8,21 @@ on:
         type: choice
         options: [lite, desktop, both]
         default: lite
-      refresh:
-        description: refresh mode (resolve base+LHPC; build both + publish a DATED release ONLY if changed)
-        type: boolean
-        default: false
+      publish_to_tag:
+        description: "Re-run and publish an EXISTING release tag (repair/resume, e.g. v0.3.6). The tag is never moved."
+        required: false
+        default: ""
+      expected_lhpc_sha:
+        description: "Cross-check for publish_to_tag: the controller commit that tag stands for. Must equal its own `lhpc-commit:` line."
+        required: false
+        default: ""
   push:
     tags: ['v*']
-  schedule:
-    - cron: '0 4 1 * *'   # monthly refresh (GitHub disables idle schedules ~60d; dispatch to re-enable)
 
 permissions: {}
 
 concurrency:
-  group: build-images-${{ github.event.inputs.variant || github.ref }}
+  group: build-images-${{ github.event.inputs.publish_to_tag || github.event.inputs.variant || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -36,9 +38,13 @@ jobs:
 
   precheck:
     runs-on: ubuntu-24.04-arm
-    permissions: {}
+    permissions:
+      contents: read
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
+      tag: ${{ steps.tag.outputs.tag }}
+      marked: ${{ steps.tag.outputs.marked }}
+      expected_lhpc: ${{ steps.tag.outputs.expected_lhpc }}
     steps:
       # A stale binary index is FATAL an hour into the build, not at the start: provision.sh
       # runs a flagless `lhpc auto-install --yes`, the binary channel's pins-must-match gate
@@ -56,12 +62,51 @@ jobs:
           persist-credentials: false
       - name: Binary index can satisfy the manifest pins on loraham-pi-control main
         run: python3 builder/check-binary-index.py
+      - id: tag
+        name: Resolve the release tag, its marker and the controller commit it stands for
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_TO_TAG: ${{ github.event.inputs.publish_to_tag }}
+          EXPECTED_IN: ${{ github.event.inputs.expected_lhpc_sha }}
+        run: |
+          set -euo pipefail
+          TAG=""
+          case "${GITHUB_REF:-}" in refs/tags/*) TAG="${GITHUB_REF#refs/tags/}" ;; esac
+          [ -n "$TAG" ] || TAG="${PUBLISH_TO_TAG:-}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          MARKED=false; EXPECTED=""
+          if [ -n "$TAG" ]; then
+            # The annotation is the release's own statement of what it is. Read it through the
+            # API so this works on a tag push and on a dispatch that names an existing tag.
+            OBJ="$(gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" --jq '.object.sha,.object.type' | paste -sd' ')"
+            SHA="${OBJ%% *}"; TYPE="${OBJ##* }"
+            MSG=""
+            if [ "$TYPE" = tag ]; then
+              MSG="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$SHA" --jq '.message')"
+            fi
+            case "$MSG" in
+              auto-release:*)
+                MARKED=true
+                EXPECTED="$(printf '%s\n' "$MSG" | sed -n 's/^lhpc-commit: *\([0-9a-f]\{40\}\)$/\1/p' | head -1)"
+                # A marked tag WITHOUT a usable controller commit is a defect in whatever cut
+                # it. Refuse here — never fall through to the hand-made path, which would
+                # publish an image under a release identity nobody stated.
+                [ -n "$EXPECTED" ] || { echo "::error::$TAG is marked auto-release but carries no valid 'lhpc-commit: <40 hex>' line"; exit 1; }
+                ;;
+            esac
+            if [ -n "${EXPECTED_IN:-}" ]; then
+              [ "$EXPECTED_IN" = "$EXPECTED" ] || { echo "::error::expected_lhpc_sha ($EXPECTED_IN) does not match what $TAG says (${EXPECTED:-none})"; exit 1; }
+            fi
+          fi
+          echo "marked=$MARKED" >> "$GITHUB_OUTPUT"
+          echo "expected_lhpc=$EXPECTED" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG marked=$MARKED expected_lhpc=${EXPECTED:-none}"
       - id: m
         run: |
-          if [ "${{ github.event_name }}" = workflow_dispatch ] && [ "${{ github.event.inputs.refresh }}" != true ]; then
+          if [ "${{ github.event_name }}" = workflow_dispatch ] && [ -z "${{ github.event.inputs.publish_to_tag }}" ]; then
             v="${{ github.event.inputs.variant }}"
           else
-            v="both"   # tags, schedule, and refresh dispatch all build both
+            v="both"   # a release tag, and a repair of one, always build both
           fi
           case "$v" in
             lite)    echo 'matrix={"variant":["lite"]}' >> "$GITHUB_OUTPUT" ;;
@@ -79,7 +124,13 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.precheck.outputs.matrix) }}
     steps:
+      # A repair names an existing tag: build the BUILDER at that tag, so the image is the one
+      # that tag describes. `github.sha` (recorded as image_build_commit) still says which
+      # builder revision actually produced it — a repair with a newer builder is visible, and
+      # never silently changes which controller release the tag stands for.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.publish_to_tag || github.ref }}
       - name: Assert native arm64 runner
         run: test "$(uname -m)" = aarch64 || { echo "not aarch64 - refuse to emulate"; exit 1; }
       - name: Free disk + install build deps
@@ -95,7 +146,8 @@ jobs:
         env:
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           IMAGE_BUILD_COMMIT: ${{ github.sha }}
-        run: sudo -E env WORK="$PWD/work" OUT="$PWD/out" WORKFLOW_RUN_ID="$WORKFLOW_RUN_ID" IMAGE_BUILD_COMMIT="$IMAGE_BUILD_COMMIT" bash builder/build.sh ${{ matrix.variant }}
+          EXPECTED_LHPC_SHA: ${{ needs.precheck.outputs.expected_lhpc }}
+        run: sudo -E env WORK="$PWD/work" OUT="$PWD/out" WORKFLOW_RUN_ID="$WORKFLOW_RUN_ID" IMAGE_BUILD_COMMIT="$IMAGE_BUILD_COMMIT" EXPECTED_LHPC_SHA="$EXPECTED_LHPC_SHA" bash builder/build.sh ${{ matrix.variant }}
       - name: Upload logs (always)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -114,16 +166,22 @@ jobs:
             out/loraham-lhpc-${{ matrix.variant }}.img.xz.sha256
             out/${{ matrix.variant }}.size
             out/logs-${{ matrix.variant }}/lhpc-image.json
+            out/logs-${{ matrix.variant }}/lhpc-composition.json
           if-no-files-found: error
           retention-days: 14
 
   # tag release: publish each variant independently (a failed/oversized Desktop cannot block Lite)
   publish-tag:
-    needs: build
-    if: ${{ always() && startsWith(github.ref, 'refs/tags/v') }}
+    needs: [precheck, build]
+    if: ${{ always() && needs.precheck.outputs.tag != '' }}
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
+    env:
+      TAG: ${{ needs.precheck.outputs.tag }}
+      MARKED: ${{ needs.precheck.outputs.marked }}
+      EXPECTED_LHPC: ${{ needs.precheck.outputs.expected_lhpc }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -142,6 +200,26 @@ jobs:
           done
           n=$(ls rel/*.img.xz 2>/dev/null | wc -l)
           [ "$n" -ge 1 ] || { echo "::error::no valid image assets - refusing to publish an empty release"; exit 1; }
+          # A HAND-MADE tag keeps the per-variant independence it has always had: a failed or
+          # oversized Desktop must not hold Lite back. A BOT-MADE release is all or nothing —
+          # it is advertised as the image for a controller release, and README sends people to
+          # either variant, so a Lite-only "v0.3.6" would promise a Desktop image that is not
+          # there. An incomplete attempt stays a draft for the retry to find.
+          if [ "$MARKED" = true ]; then
+            for v in lite desktop; do
+              [ -f "rel/loraham-lhpc-$v.img.xz" ] \
+                || { echo "::error::$TAG is an automated release: it publishes BOTH variants or none - $v is missing"; exit 1; }
+            done
+            [ -n "$EXPECTED_LHPC" ] || { echo "::error::marked tag without an expected controller commit"; exit 1; }
+            for v in lite desktop; do
+              got=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('lhpc_commit',''))" "rel/provenance-$v.json")
+              [ "$got" = "$EXPECTED_LHPC" ] \
+                || { echo "::error::$v was built from lhpc $got, but $TAG stands for $EXPECTED_LHPC"; exit 1; }
+            done
+            gh api "repos/$GITHUB_REPOSITORY/git/tags/$(gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" --jq .object.sha)" \
+              --jq .message > rel/AUTO-RELEASE
+            echo "marked release $TAG: both variants present, controller $EXPECTED_LHPC confirmed"
+          fi
           for v in lite desktop; do
             [ -f "rel/loraham-lhpc-$v.img.xz" ] || continue
             for f in "loraham-lhpc-$v.img.xz.sha256" "provenance-$v.json" "packages-$v.txt" "components-$v.txt"; do
@@ -151,64 +229,35 @@ jobs:
           ( cd rel && sha256sum ./*.img.xz > SHA256SUMS )
           python3 builder/signature.py rel > rel/signature.txt
           ls -l rel
+      # Staged as a DRAFT first: a draft is not public, cannot become "latest", and is exactly
+      # what a retry resumes. It is promoted only after the upload is read back and verified.
       - uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
+          tag_name: ${{ needs.precheck.outputs.tag }}
           files: rel/*
           fail_on_unmatched_files: false
+          draft: ${{ needs.precheck.outputs.marked == 'true' }}
 
-  # monthly/manual refresh: build ran unconditionally; publish a DATED release ONLY if the FULL
-  # provenance signature (base + packages + LHPC + component composition) differs from the latest
-  # release — else finish green with no duplicate.
-  publish-refresh:
-    needs: build
-    # NOT always(): a refresh must not publish a partial set. The dated release it creates can
-    # become GitHub's "latest", and the README sends users to either image — so a Lite-only
-    # release would advertise a Desktop image that is not there, and its signature would
-    # differ from the previous two-image one purely because Desktop was missing, i.e. a failed
-    # build would read as "something changed". publish-tag keeps its intentional per-variant
-    # independence; this job requires the whole matrix.
-    if: ${{ needs.build.result == 'success' && (github.event_name == 'schedule' || github.event.inputs.refresh == 'true') }}
-    runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with: { path: dl }
-      - name: Assemble, compare full signature, publish dated release on change
+      - name: Verify the uploaded assets, then publish the release
+        if: ${{ needs.precheck.outputs.marked == 'true' }}
         run: |
-          set -e; mkdir -p rel
-          for v in lite desktop; do
-            img="dl/image-$v/loraham-lhpc-$v.img.xz"
-            [ -f "$img" ] || { echo "no image for $v"; continue; }
-            sz=$(stat -c%s "$img"); [ "$sz" -le 2147483648 ] || { echo "::error::$v $sz > 2GiB"; exit 1; }
-            cp "dl/image-$v/loraham-lhpc-$v.img.xz" "dl/image-$v/loraham-lhpc-$v.img.xz.sha256" rel/ 2>/dev/null || true
-            cp "dl/logs-$v/lhpc-image.json" "rel/provenance-$v.json" 2>/dev/null || true
-            cp "dl/logs-$v/lhpc-packages.log" "rel/packages-$v.txt" 2>/dev/null || true
-            cp "dl/logs-$v/lhpc-versions.log" "rel/components-$v.txt" 2>/dev/null || true
+          set -euo pipefail
+          # Read the assets BACK and compare digests with what was built. An upload that
+          # truncated or never landed must not become a published image.
+          mkdir -p verify && gh release download "$TAG" --dir verify --clobber
+          for f in rel/*; do
+            b="$(basename "$f")"
+            [ -f "verify/$b" ] || { echo "::error::$b did not reach the release"; exit 1; }
+            a="$(sha256sum "$f" | cut -d" " -f1)"; c="$(sha256sum "verify/$b" | cut -d" " -f1)"
+            [ "$a" = "$c" ] || { echo "::error::$b differs after upload ($a != $c)"; exit 1; }
           done
-          for v in lite desktop; do
-            [ -f "rel/loraham-lhpc-$v.img.xz" ] \
-              || { echo "::error::refresh publishes BOTH variants or none - $v is missing"; exit 1; }
-          done
-          for v in lite desktop; do
-            [ -f "rel/loraham-lhpc-$v.img.xz" ] || continue
-            for f in "loraham-lhpc-$v.img.xz.sha256" "provenance-$v.json" "packages-$v.txt" "components-$v.txt"; do
-              [ -s "rel/$f" ] || { echo "::error::published $v image is missing evidence: $f"; exit 1; }
-            done
-          done
-          ( cd rel && sha256sum ./*.img.xz > SHA256SUMS )
-          SIG="$(python3 builder/signature.py rel)"; echo "$SIG" > rel/signature.txt
-          echo "new full signature: $SIG"
-          OLD=""; last=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
-          if [ -n "$last" ]; then gh release download "$last" -p signature.txt -D prev 2>/dev/null || true; OLD=$(cat prev/signature.txt 2>/dev/null || echo ''); fi
-          echo "latest release ($last) signature: $OLD"
-          if [ "$SIG" = "$OLD" ]; then
-            echo "NO CHANGE vs $last (base/packages/LHPC/components identical) — finishing green, no duplicate release."
-            exit 0
-          fi
-          TAG="img-$(python3 -c 'import datetime; print(datetime.datetime.utcnow().strftime("%Y.%m.%d-%H%M"))')"
-          echo "CHANGE detected — publishing dated release $TAG (signature $SIG)"
-          gh release create "$TAG" rel/* --title "$TAG" --notes "Refreshed images (monthly). signature: $SIG"
+          echo "all $(ls rel | wc -l) asset(s) verified byte-for-byte"
+          gh release edit "$TAG" --draft=false --latest
+          echo "published $TAG"
+
+      - name: Prune superseded automated releases
+        # Retention only, and only after a COMPLETE publish. A failure here is a warning: the
+        # release itself succeeded, and nothing is broken by keeping one image pair too many.
+        if: ${{ needs.precheck.outputs.marked == 'true' }}
+        continue-on-error: true
+        run: python3 builder/prune-releases.py --keep 3 --repo "$GITHUB_REPOSITORY" --apply

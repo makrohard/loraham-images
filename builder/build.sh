@@ -35,6 +35,14 @@ log "resolved base sha256: $BASE_SHA256"
 [ "${#BASE_SHA256}" -eq 64 ] || die "base sha256 looks like a placeholder: $BASE_SHA256"
 LHPC_SHA="$("$_here/resolve-lhpc.sh" resolve)"
 log "resolved lhpc main: $LHPC_SHA"
+# An automated release names the controller commit its image MUST carry (the `lhpc-commit:` line
+# in its tag annotation). Refuse rather than build a differently-labelled image: the tag says
+# which release this is, and main may have advanced since that release was cut.
+if [ -n "${EXPECTED_LHPC_SHA:-}" ]; then
+  [ "${#EXPECTED_LHPC_SHA}" -eq 40 ] || die "EXPECTED_LHPC_SHA is not a full commit sha: $EXPECTED_LHPC_SHA"
+  [ "$LHPC_SHA" = "$EXPECTED_LHPC_SHA" ] || die "this build is pinned to loraham-pi-control $EXPECTED_LHPC_SHA but main is now $LHPC_SHA — refusing to publish a different controller under that tag"
+  log "expected lhpc commit confirmed: $EXPECTED_LHPC_SHA"
+fi
 group_end
 
 # ---- fetch + verify --------------------------------------------------------
@@ -114,6 +122,7 @@ SSH_ENABLE=${SSH_ENABLE:-off}
 OPERATOR_USER=$OPERATOR_USER
 OPERATOR_PASSWORD=$OPERATOR_PASSWORD
 LHPC_RESOLVED_SHA=$LHPC_SHA
+EXPECTED_LHPC_SHA=${EXPECTED_LHPC_SHA:-}
 WORKFLOW_RUN_ID=${WORKFLOW_RUN_ID:-}
 IMAGE_BUILD_COMMIT=${IMAGE_BUILD_COMMIT:-}
 BASE_URL=$BASE_URL
@@ -152,6 +161,10 @@ fi
 
 # provisioning payload + build-only oneshot
 install -m0755 "$_here/provision.sh" "$ROOT/usr/local/sbin/lhpc-provision"
+# The composition check runs INSIDE the image, against the lhpc the image installed — it reads
+# LHPC's own GUI-availability predicate and its own identity verifiers, so this builder never
+# re-derives which components a Lite image is allowed to omit.
+install -m0755 "$_here/check-composition.py" "$ROOT/usr/local/sbin/lhpc-check-composition"
 cat > "$ROOT/etc/systemd/system/lhpc-provision.service" <<'EOF'
 [Unit]
 Description=loraham-images provisioning (BUILD-ONLY)
@@ -204,6 +217,7 @@ log "nspawn exited rc=$nspawn_rc"
 # copy provision log out (artifact) — even on failure
 mkdir -p "$OUT/logs-$VARIANT"
 cp -a "$ROOT/var/log/lhpc-provision.log" "$OUT/logs-$VARIANT/" 2>/dev/null || true
+cp -a "$ROOT/var/log/lhpc-composition.json" "$OUT/logs-$VARIANT/" 2>/dev/null || true
 cp -a "$ROOT/var/log/"*.log "$OUT/logs-$VARIANT/" 2>/dev/null || true
 cp -a "$ROOT/etc/lhpc-image.json" "$OUT/logs-$VARIANT/" 2>/dev/null || true
 # marker is the pass criterion, NOT the exit code
@@ -226,6 +240,7 @@ group_begin "disarm build scaffolding"
 rm -f "$ROOT/etc/systemd/system/multi-user.target.wants/lhpc-provision.service"
 rm -f "$ROOT/etc/systemd/system/lhpc-provision.service"
 rm -f "$ROOT/usr/local/sbin/lhpc-provision"
+rm -f "$ROOT/usr/local/sbin/lhpc-check-composition"
 BUILD_MASKS="NetworkManager.service wpa_supplicant.service systemd-networkd.service ssh.service \
              systemd-timesyncd.service dphys-swapfile.service"
 for u in $BUILD_MASKS; do

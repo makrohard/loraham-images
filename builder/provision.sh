@@ -184,7 +184,13 @@ say "installed HEAD=$INSTALLED_SHA resolved=$LHPC_RESOLVED_SHA"
 # die on an unexplained mismatch. Kept INLINE — deliberately NOT shared with builder/resolve-lhpc.sh
 # — because provision runs in the container as /usr/local/sbin/lhpc-provision, where that host-side
 # script is never staged (build.sh installs only this file).
-if [ "$INSTALLED_SHA" != "$LHPC_RESOLVED_SHA" ]; then
+if [ -n "${EXPECTED_LHPC_SHA:-}" ]; then
+  # A release build names the controller commit its tag stands for. There is no "main advanced"
+  # tolerance here: an image published under vX.Y.Z must carry vX.Y.Z's controller, or nothing.
+  [ "$INSTALLED_SHA" = "$EXPECTED_LHPC_SHA" ] \
+    || die "installed LHPC $INSTALLED_SHA != the expected release commit $EXPECTED_LHPC_SHA"
+  say "installed LHPC matches the expected release commit"
+elif [ "$INSTALLED_SHA" != "$LHPC_RESOLVED_SHA" ]; then
   FRESH="$(git ls-remote https://github.com/makrohard/loraham-pi-control.git refs/heads/main | awk '{print $1}')"
   [ "$INSTALLED_SHA" = "$FRESH" ] || die "unexplained LHPC SHA mismatch: installed=$INSTALLED_SHA resolved=$LHPC_RESOLVED_SHA current=$FRESH"
   say "main advanced mid-job; installed matches current main"
@@ -226,6 +232,12 @@ as_op "$LHPC_BIN" doctor            > /var/log/lhpc-doctor.log 2>&1 || true
 # The component/version report is REQUIRED release evidence — fail closed if it can't be produced.
 as_op "$LHPC_BIN" status --versions > /var/log/lhpc-versions.log 2>&1 || die "lhpc status --versions failed"
 [ -s /var/log/lhpc-versions.log ] || die "component report (status --versions) is empty"
+# The MACHINE check beside that readable report: every managed source re-proved against its pin
+# through LHPC's own verifiers, every artifact against its receipt, and only the components
+# LHPC's own GUI predicate calls unavailable here allowed to be absent.
+say "composition check (LHPC's own identity verifiers and GUI predicate)"
+as_op env VARIANT="$VARIANT" EXPECTED_LHPC_SHA="${EXPECTED_LHPC_SHA:-}" \
+  /usr/local/sbin/lhpc-check-composition || die "composition check failed"
 
 # ---- 9b. Desktop conveniences (Desktop variant only) -----------------------
 # None of this exists on Lite: no lightdm, no pcmanfm, no chromium. The static assets (mdview and

@@ -535,9 +535,9 @@ sudo apt update && sudo apt full-upgrade -y
 - Ein einzelner Stack, nur wenn du eine neuere Version willst als das Image mitbringt:
   `lhpc update <stack>`. Die Stacks sind bereits installiert und gebaut — Aktualisieren ist
   optional, kein Teil der Einrichtung.
-- Die Images werden monatlich auf der jeweils aktuellen offiziellen Basis neu gebaut; **Kernel,
-  Bootloader und Firmware folgen dieser Basis**. Aktualisiere einfach an Ort und Stelle — neu
-  flashen musst du nicht. Maintainer-Notizen: [`docs/maintenance.md`](docs/maintenance.md).
+- Zu jedem LHPC-Release entsteht ein neues Image, auf der jeweils aktuellen offiziellen Basis;
+  **Kernel, Bootloader und Firmware folgen dieser Basis**. Aktualisiere einfach an Ort und Stelle
+  — neu flashen musst du nicht. Maintainer-Notizen: [`docs/maintenance.md`](docs/maintenance.md).
 </details>
 
 ### 12 · Auf Sendung

@@ -132,8 +132,31 @@ stat -c '%U:%G %n' / /etc /usr /usr/local/sbin/lhpc-firstboot   # all root:root
 are installed explicitly root-owned, so they were never affected.
 
 ## Routine release
-- Re-run the workflow (dispatch or tag `v*`); artifacts + logs upload; a `v*` tag publishes per
-  variant **independently** (Lite can release while Desktop is still red/oversized).
+- Re-run the workflow (dispatch or tag `v*`); artifacts + logs upload. A HAND-MADE `v*` tag
+  publishes per variant **independently** (Lite can release while Desktop is still red/oversized).
+- **An automated release is all or nothing.** A tag whose annotation starts with `auto-release:`
+  must also carry a `lhpc-commit: <40 hex>` line — the controller release it stands for — or the
+  run fails at `precheck` rather than falling back to hand-made behaviour. The build then refuses
+  unless the resolved AND installed controller is exactly that commit (no "main advanced"
+  tolerance), both variants must be present with their evidence, and the release is staged as a
+  **draft**, its assets read back and compared byte for byte, and only then published and marked
+  latest. The annotation is uploaded as the `AUTO-RELEASE` asset: that marker, not the tag name,
+  is what identifies a release as automated.
+- **Retention:** after a complete automated publish, `builder/prune-releases.py` deletes all but
+  the three newest COMPLETE, PUBLISHED, marked releases. It never touches a hand-made release, a
+  draft, or any tag — a tag is how "image v0.3.1 carried controller c54a90f" stays answerable
+  after the assets are gone. A prune failure is a warning, not a failed release.
+- **Repairing a published attempt:** dispatch with `publish_to_tag: vX.Y.Z` (and optionally
+  `expected_lhpc_sha` as a cross-check). The tag is never moved and the controller identity
+  never changes; the builder is checked out AT that tag, while `image_build_commit` in the
+  provenance records which builder revision actually produced the image — so a repair with a
+  newer builder is visible rather than silent.
+- **Composition is checked inside the image**, not inferred here: `builder/check-composition.py`
+  runs against the lhpc the image installed and asks LHPC's own code both questions — which
+  components may legitimately be absent (`gui_unavailable_components`, so a Lite image may lack
+  Sideband and the Voice GTK variant and nothing else) and whether each installed component
+  really is its pinned commit (the source-registry and binary-receipt verifiers). The readable
+  `components-*.txt` stays as evidence beside it; it is not the check.
 - **The changelog entry is proportional to the change.** When the only changed input is the
   `loraham-pi-control` commit — pins, binaries, base and this repo all unchanged — one line is the
   whole entry: *Rebuild on `loraham-pi-control` vX.Y.Z (`<sha>`); see that repo's changelog.* Write
@@ -172,18 +195,17 @@ are installed explicitly root-owned, so they were never affected.
 - **Cross-repo dependency:** the binary stacks only install when `lhpc-binaries` has artifacts
   matching the resolved `main` manifest pins. If `main` outruns the channel the run fails those
   stacks by design (no `--source pinned` workaround) — rebuild `lhpc-binaries`, then re-run.
-- **A republished binary means a re-cut image:** the artifact is baked into the image, so every
-  `lhpc-binaries` publish (a pin move or a change inside the artifact, such as the Meshtastic web
-  client) is followed by an image milestone and tag — patch releases included.
+- **Every controller release is followed by an image:** the artifacts and the pins are baked in,
+  so a release without its image would leave new users on an older controller. Minor and patch
+  alike.
 
 ## Dependencies to keep an eye on
 - `INVOCATION_ID`-unset operator path (delta-7 focused test): revalidate against new LHPC SHAs.
 - The base's first-user mechanism (userconf/custom.toml) — inspected per base, not hardcoded.
-- Monthly `schedule:` **builds both unconditionally** (so a package-only Debian/RPi security update is
-  picked up even with no new base or LHPC commit) and publishes a dated `img-YYYY.MM.DD-HHMM` release
-  **only when the full provenance signature** (base sha + package-manifest sha + LHPC commit + component
-  report sha) differs from the latest release — else finishes green with no duplicate. GitHub disables idle schedules
-  (~60 days) — dispatch manually to re-enable.
+- **There is no scheduled build.** An image is cut for every controller release and for nothing
+  else, so the published image always matches the latest release. The consequence, accepted
+  deliberately: a month in which only Debian packages or the Raspberry Pi base moved produces no
+  new image, and those updates reach existing boxes through `apt` rather than a reflash.
 
 ## Upstream asks (not implemented here)
 - `install.sh --ref <sha|tag>` for pinned-not-recorded reproducibility.

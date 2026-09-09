@@ -506,8 +506,8 @@ sudo apt update && sudo apt full-upgrade -y
   updater in the console.
 - A single stack, only if you want a newer version than the image shipped: `lhpc update <stack>`.
   Stacks are already installed and built — updating is optional, not part of setup.
-- Images are rebuilt monthly on the latest official base; **kernel, bootloader and firmware track
-  that base**. Update in place — you don't need to reflash. Maintainer notes:
+- A new image is built for every LHPC release, on the latest official base; **kernel, bootloader
+  and firmware track that base**. Update in place — you don't need to reflash. Maintainer notes:
   [`docs/maintenance.md`](docs/maintenance.md).
 </details>
 

@@ -10,6 +10,9 @@ for f in "${scripts[@]}"; do bash -n "$f" && echo "  ok $f"; done
 echo "== binary index check (offline fixtures) =="
 python3 tests/binary-index.py
 
+echo "== release retention: only complete bot-made releases, never a hand-made one =="
+python3 tests/prune-releases.py
+
 echo "== shellcheck =="
 if command -v shellcheck >/dev/null 2>&1; then
   # SC1091: sourced files resolved at runtime; SC2154: vars from load_env/config;

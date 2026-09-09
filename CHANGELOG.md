@@ -2,7 +2,10 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
-## Unreleased
+## v0.3.8
+
+- Rebuild on `loraham-pi-control` **v0.3.8** (`a59312a`): the release-verification lane's
+  assertions, no product change on the box. Source pins and binaries unchanged since v0.3.7.
 
 - An image repair now RUNS the builder revision it records: `builder_ref` selects it, the job
   checks that revision out and `image_build_commit` is what actually ran. It used to check out

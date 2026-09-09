@@ -244,8 +244,20 @@ say "composition check (LHPC's own identity verifiers and GUI predicate)"
 # shellcheck disable=SC2016  # the command substitution must run in the operator's shell
 LHPC_PY="$(as_op bash -lc 'p=$(command -v lhpc) && dirname "$(readlink -f "$p")"')/python"
 [ -x "$LHPC_PY" ] || die "cannot find the lhpc venv interpreter (looked for $LHPC_PY)"
+# The check runs as the OPERATOR, who cannot write into /var/log — every other report here is
+# redirected by root's shell, this one is written by the process itself. So it writes into the
+# operator's home and root files it, whether the check passed or failed: a failed composition is
+# exactly the report worth keeping.
+COMP_JSON="/home/$OPERATOR_USER/lhpc-composition.json"
+comp_rc=0
 as_op env VARIANT="$VARIANT" EXPECTED_LHPC_SHA="${EXPECTED_LHPC_SHA:-}" \
-  "$LHPC_PY" /usr/local/sbin/lhpc-check-composition || die "composition check failed"
+  COMPOSITION_REPORT="$COMP_JSON" \
+  "$LHPC_PY" /usr/local/sbin/lhpc-check-composition || comp_rc=$?
+if [ -f "$COMP_JSON" ]; then
+  cp "$COMP_JSON" /var/log/lhpc-composition.json
+  rm -f "$COMP_JSON"
+fi
+[ "$comp_rc" -eq 0 ] || die "composition check failed (rc $comp_rc)"
 
 # ---- 9b. Desktop conveniences (Desktop variant only) -----------------------
 # None of this exists on Lite: no lightdm, no pcmanfm, no chromium. The static assets (mdview and

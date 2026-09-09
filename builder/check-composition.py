@@ -103,15 +103,17 @@ def main() -> int:
                 bad.append(f"{stack.id}: artifact carries {cid} {commit[:9]}, the manifest "
                            f"pins {pins[cid][:9]}")
 
+    # The verdict is printed BEFORE the report is written: a report this process cannot write
+    # must not be able to hide what it found.
+    for line in bad:
+        print(f"[composition] {line}", file=sys.stderr)
+    print(f"[composition] {len(rows)} component(s) checked on {variant}, {len(bad)} problem(s)")
+
     report = {"variant": variant, "expected_lhpc_commit": expected_lhpc,
               "components": rows, "problems": bad}
     with open(REPORT, "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=2, sort_keys=True)
-
-    for line in bad:
-        print(f"[composition] {line}", file=sys.stderr)
-    print(f"[composition] {len(rows)} component(s) checked on {variant}, "
-          f"{len(bad)} problem(s); report at {REPORT}")
+    print(f"[composition] report written to {REPORT}")
     return 1 if bad else 0
 
 

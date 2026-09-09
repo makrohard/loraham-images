@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.3.9
+
+- Rebuild on `loraham-pi-control` **v0.3.9** (`26c073e`): files a user or a stack adds to a
+  managed source checkout now survive `lhpc update` instead of blocking it. Source pins and
+  binaries unchanged since v0.3.7.
+
 ## v0.3.8
 
 - Rebuild on `loraham-pi-control` **v0.3.8** (`a59312a`): the release-verification lane's

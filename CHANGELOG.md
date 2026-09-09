@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.3.11
+
+- Rebuild on `loraham-pi-control` **v0.3.11** (`b2b92e2`): CI lints the test lab, matching the
+  gate CONTRIBUTING already documented. No product change on the box. Source pins and binaries
+  unchanged since v0.3.7.
+
 ## v0.3.10
 
 - Rebuild on `loraham-pi-control` **v0.3.10** (`dce430f`): Voice is an ordinary pinned source, so

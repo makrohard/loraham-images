@@ -2,6 +2,26 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.3.6
+
+- Rebuild on `loraham-pi-control` **v0.3.6** (`063a475`): a default install now lands on the
+  release's pins, so this image ships the pinned composition instead of the branch tips of the
+  day. Source pins and binaries unchanged.
+- An image is cut for every controller release and for nothing else: the monthly schedule and its
+  dated `img-*` releases are gone. A month in which only Debian packages moved produces no image;
+  those updates reach existing boxes through `apt`.
+- A release tag whose annotation says `auto-release:` must name the controller commit it stands
+  for (`lhpc-commit: <sha>`). The build then refuses any other controller, publishes only with
+  BOTH variants and their evidence, stages the release as a draft, reads its assets back and
+  compares them, and only then publishes it as latest.
+- `builder/check-composition.py` runs inside the image and asks LHPC's own code what may be
+  absent here (its GUI predicate) and whether every component really is its pinned commit (its
+  identity verifiers), instead of reading the human-readable component report.
+- Retention: the three newest complete automated releases are kept; hand-made releases, drafts
+  and all tags are never touched.
+- A published attempt can be repaired without a new controller release: dispatch with
+  `publish_to_tag`.
+
 ## v0.3.5
 
 - Rebuild on `loraham-pi-control` **v0.3.5** (`b4ad26a`): test-suite rework only — no product

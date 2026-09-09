@@ -21,7 +21,7 @@ import os
 import subprocess
 import sys
 
-REPORT = "/var/log/lhpc-composition.json"
+REPORT = os.environ.get("COMPOSITION_REPORT", "/var/log/lhpc-composition.json")
 
 
 def main() -> int:
@@ -32,6 +32,16 @@ def main() -> int:
     paths, system, config = svc._paths, svc._system, svc.config()
     variant = os.environ.get("VARIANT", "?")
     expected_lhpc = os.environ.get("EXPECTED_LHPC_SHA", "")
+
+    # A stack installed from an artifact has no managed checkout for the components that
+    # artifact covers — the artifact IS the install, and its receipt is what proves it (below).
+    # A directory the artifact's own layout leaves under src/ is not an adopted source and must
+    # not be read as one.
+    from_binary = set()
+    for stack in svc.stacks():
+        spec = svc.binary_spec(stack.id)
+        if spec and binary_receipt.receipt_state(paths, stack.id)[0] == "valid":
+            from_binary.update(spec.covers)
 
     rows, bad = [], []
     for stack in svc.stacks():
@@ -44,6 +54,10 @@ def main() -> int:
             dest = paths.resolve_source(spec.path)
             row = {"stack": stack.id, "component": comp.id, "pin": pin,
                    "gui_optional_here": comp.id in skippable}
+            if comp.id in from_binary:
+                row["state"] = "from-artifact"
+                rows.append(row)
+                continue
             if not dest.exists():
                 row["state"] = "absent"
                 rows.append(row)

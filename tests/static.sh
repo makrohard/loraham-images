@@ -13,6 +13,15 @@ python3 tests/binary-index.py
 echo "== release retention: only complete bot-made releases, never a hand-made one =="
 python3 tests/prune-releases.py
 
+echo "== builder python parses (a syntax error here costs a whole image build) =="
+_pyn=0
+for f in builder/*.py; do
+  python3 -c 'import ast,sys; ast.parse(open(sys.argv[1]).read())' "$f" || { echo "  BAD $f"; exit 1; }
+  head -1 "$f" | grep -q '^#!/usr/bin/env python3$' || { echo "  $f missing python3 shebang"; exit 1; }
+  _pyn=$((_pyn + 1))
+done
+echo "  ok: $_pyn builder scripts parse"
+
 echo "== shellcheck =="
 if command -v shellcheck >/dev/null 2>&1; then
   # SC1091: sourced files resolved at runtime; SC2154: vars from load_env/config;

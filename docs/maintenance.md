@@ -142,14 +142,17 @@ are installed explicitly root-owned, so they were never affected.
   **draft**, its assets read back and compared byte for byte, and only then published and marked
   latest. The annotation is uploaded as the `AUTO-RELEASE` asset: that marker, not the tag name,
   is what identifies a release as automated.
-- **Retention:** after a complete automated publish, `builder/prune-releases.py` deletes all but
-  the three newest COMPLETE, PUBLISHED, marked releases. Complete means the publisher's whole
-  asset set — both images, both checksums, both provenance records, both component reports and
-  `SHA256SUMS` — so an incomplete attempt neither counts toward the three nor is deleted; it is
-  what a retry looks for. It never touches a hand-made release, a draft, or any tag — a tag is
-  how "image v0.3.1 carried controller c54a90f" stays answerable after the assets are gone. A
-  prune failure is a warning, not a failed release. It reads the releases through the REST
-  endpoint: `gh release list` has no `assets` field, and asking for one fails the call.
+- **Retention:** after a complete automated publish, `builder/prune-releases.py` keeps the three
+  newest patches of the CURRENT minor line and deletes the rest of that line. Deletion stops at
+  the `.0` that opens the line: neither it nor anything below it is ever a candidate, so a minor
+  stays answerable however many patches come and go above it. The boundary is read from every
+  published release, because a `.0` is normally a maintainer's; drafts do not move it.
+  Complete means the publisher's whole asset set, so an incomplete attempt neither counts toward
+  the three nor is deleted — it is what a retry looks for. It never touches a hand-made release,
+  a draft, or any tag — a tag is how "image v0.3.1 carried controller c54a90f" stays answerable
+  after the assets are gone. A prune failure is a warning, not a failed release. It reads the
+  releases through the REST endpoint: `gh release list` has no `assets` field, and asking for one
+  fails the call.
 - **Repairing a published attempt:** dispatch with `publish_to_tag: vX.Y.Z` (and optionally
   `expected_lhpc_sha` as a cross-check). The tag is never moved and the controller identity
   never changes. By default the builder is checked out AT that tag, so the repair rebuilds what

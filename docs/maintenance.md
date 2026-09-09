@@ -152,7 +152,8 @@ are installed explicitly root-owned, so they were never affected.
   a draft, or any tag — a tag is how "image v0.3.1 carried controller c54a90f" stays answerable
   after the assets are gone. A prune failure is a warning, not a failed release. It reads the
   releases through the REST endpoint: `gh release list` has no `assets` field, and asking for one
-  fails the call.
+  fails the call. Retention is bounded per line, not overall: an older line keeps every release
+  it had, so total storage grows with the number of minors rather than staying at three.
 - **Repairing a published attempt:** dispatch with `publish_to_tag: vX.Y.Z` (and optionally
   `expected_lhpc_sha` as a cross-check). The tag is never moved and the controller identity
   never changes. By default the builder is checked out AT that tag, so the repair rebuilds what

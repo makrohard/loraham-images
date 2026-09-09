@@ -138,8 +138,16 @@ def main() -> int:
         releases = json.loads(sys.stdin.read())
 
     doomed = to_delete(releases, args.keep)
-    kept = [t for _v, t in complete_bot_releases(releases)][-args.keep:]
-    print(f"keeping {args.keep} bot-made release(s): {', '.join(kept) or 'none'}")
+    # Say what is actually kept, per the rule that actually runs. This printed the newest three
+    # bot-made releases overall, which is the rule this replaced: with an older line still
+    # present it named releases from it while keeping every one of them.
+    line = current_line(releases)
+    in_line = [tag for v, tag in complete_bot_releases(releases)
+               if line and v[:2] == line and v[2] > 0]
+    kept = [tag for tag in in_line if tag not in doomed]
+    where = f"v{line[0]}.{line[1]}" if line else "no released line"
+    print(f"{where}: keeping {len(kept)} patch release(s): {', '.join(kept) or 'none'}; "
+          f"the .0 and every older line are kept in full")
     for tag in doomed:
         print(tag)
         if args.apply and args.repo:

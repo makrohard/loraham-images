@@ -268,9 +268,16 @@ jobs:
           gh release edit "$TAG" --draft=false --latest
           echo "published $TAG"
 
-      - name: Prune superseded automated releases
-        # Retention only, and only after a COMPLETE publish. A failure here is a warning: the
-        # release itself succeeded, and nothing is broken by keeping one image pair too many.
-        if: ${{ needs.precheck.outputs.marked == 'true' }}
+      - name: Prune superseded patch releases
+        # Retention. NOT gated on `marked`: the rule is about a release POSITION in the series,
+        # not about who cut it, and gating it here meant it ran once in thirteen releases while
+        # every hand-made patch accumulated. The script decides what may go — it never touches a
+        # draft, an incomplete release, the `.0` that opens the line, or any older line.
+        #
+        # A failure must not fail the release, but it must not be silent either: that is how a
+        # crash in this step went unnoticed for twelve releases. `continue-on-error` alone only
+        # writes a red tick nobody opens, so the failure is stated as a warning as well.
         continue-on-error: true
-        run: python3 builder/prune-releases.py --keep 3 --repo "$GITHUB_REPOSITORY" --apply
+        run: |
+          python3 builder/prune-releases.py --keep 3 --repo "$GITHUB_REPOSITORY" --apply \
+            || { echo "::warning::retention did not run: prune-releases.py failed. The release itself is fine; old patch releases are still there."; exit 1; }

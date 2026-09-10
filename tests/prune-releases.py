@@ -133,4 +133,13 @@ else:
     print("  FAIL: keep=0 was accepted")
     sys.exit(1)
 
+# The step that RUNS this script must not be gated on the tag being an automated one. It was,
+# and retention therefore ran once in thirteen releases while every hand-made patch accumulated.
+_wf = (pathlib.Path(__file__).resolve().parents[1]
+       / ".github" / "workflows" / "build-images.yml").read_text()
+_step = _wf[_wf.index("Prune superseded"):]
+_step = _step[:_step.index("prune-releases.py")]
+check("the prune step is not gated on the tag being marked",
+      "marked" in _step and "if:" in _step, False)
+
 print("  prune-releases: all cases pass")

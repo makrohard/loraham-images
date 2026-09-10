@@ -142,7 +142,8 @@ are installed explicitly root-owned, so they were never affected.
   **draft**, its assets read back and compared byte for byte, and only then published and marked
   latest. The annotation is uploaded as the `AUTO-RELEASE` asset: that marker, not the tag name,
   is what identifies a release as automated.
-- **Retention:** after a complete automated publish, `builder/prune-releases.py` keeps the three
+- **Retention:** after a complete publish — automated or hand-made, since the rule is about a
+  release's position in the series — `builder/prune-releases.py` keeps the three
   newest patches of the CURRENT minor line and deletes the rest of that line. Deletion stops at
   the `.0` that opens the line: neither it nor anything below it is ever a candidate, so a minor
   stays answerable however many patches come and go above it. The boundary is read from every
@@ -151,9 +152,10 @@ are installed explicitly root-owned, so they were never affected.
   the three nor is deleted — it is what a retry looks for. Who cut a release does not decide
   this: a hand-made patch inside the range goes like any other. It never touches a draft
   (somebody's retry) or any tag — a tag is how "image v0.3.1 carried controller c54a90f" stays
-  answerable after the assets are gone. A prune failure is a warning, not a failed release. It reads the
-  releases through the REST endpoint: `gh release list` has no `assets` field, and asking for one
-  fails the call. Retention is bounded per line, not overall: an older line keeps every release
+  answerable after the assets are gone. A prune failure is a warning, not a failed release —
+  stated as one, because a step that only reddens is a step nobody opens: retention ran once in
+  thirteen releases and crashed that once, unnoticed. It reads the releases through the REST
+  endpoint: `gh release list` has no `assets` field, and asking for one fails the call. Retention is bounded per line, not overall: an older line keeps every release
   it had, so total storage grows with the number of minors rather than staying at three.
 - **Repairing a published attempt:** dispatch with `publish_to_tag: vX.Y.Z` (and optionally
   `expected_lhpc_sha` as a cross-check). The tag is never moved and the controller identity

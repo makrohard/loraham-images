@@ -2,6 +2,10 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.3.14
+
+- Rebuild on `loraham-pi-control` **v0.3.14** (`4afef73`); see that repo's changelog.
+
 ## v0.3.12
 
 - Rebuild on `loraham-pi-control` **v0.3.12** (`ac5497c`): the Meshtastic artifact now records

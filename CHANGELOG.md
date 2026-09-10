@@ -2,6 +2,14 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.3.12
+
+- Rebuild on `loraham-pi-control` **v0.3.12** (`ac5497c`): the Meshtastic artifact now records
+  the web-client and CLI versions it was built with, in a file beside its completion marker, and
+  the controller refuses to call an artifact current when they do not match the manifest. The
+  Meshtastic binary was republished from the tagged commit before this image. No other product
+  change on the box; source pins otherwise unchanged since v0.3.7.
+
 ## v0.3.11
 
 - Rebuild on `loraham-pi-control` **v0.3.11** (`b2b92e2`): CI lints the test lab, matching the

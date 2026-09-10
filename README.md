@@ -104,7 +104,7 @@ AP_PSK=choose-a-wifi-key
 WIFI_COUNTRY=DE
 TIMEZONE=Europe/Berlin
 KEYBOARD=de,us
-CALL=DJ0CHE
+CALL=N0CALL
 ```
 
 When first boot succeeds it overwrites `PASSWORD=` and `AP_PSK=` in that file with `REDACTED`, so

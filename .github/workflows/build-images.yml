@@ -20,8 +20,20 @@ on:
         description: "Builder revision to RUN for a repair (branch, tag or sha). Blank = the tag's own builder. The controller identity never changes either way."
         required: false
         default: ""
+      refresh:
+        description: "Refresh mode: build BOTH variants from current main and publish a DATED release only if the base, packages, controller or composition actually changed."
+        type: boolean
+        default: false
   push:
     tags: ['v*']
+  # The OS moves even when our pins do not. `provision.sh` resolves the latest official base and
+  # runs a full-upgrade on every build, so any build produces a current image — but between
+  # releases nothing triggered one, and the release bot only tags when an eligible PIN moves. A
+  # quiet month therefore left the downloadable image ageing on its security updates. This is the
+  # trigger that closes that, and it is deliberately NOT the bot's business: the bot releases
+  # controller versions, this refreshes the operating system underneath them.
+  schedule:
+    - cron: '0 4 1 * *'   # monthly. GitHub disables idle schedules after ~60 days; dispatch to re-enable.
 
 permissions: {}
 
@@ -107,10 +119,15 @@ jobs:
           echo "tag=$TAG marked=$MARKED expected_lhpc=${EXPECTED:-none}"
       - id: m
         run: |
-          if [ "${{ github.event_name }}" = workflow_dispatch ] && [ -z "${{ github.event.inputs.publish_to_tag }}" ]; then
+          if [ "${{ github.event_name }}" = workflow_dispatch ] \
+             && [ -z "${{ github.event.inputs.publish_to_tag }}" ] \
+             && [ "${{ github.event.inputs.refresh }}" != true ]; then
             v="${{ github.event.inputs.variant }}"
           else
-            v="both"   # a release tag, and a repair of one, always build both
+            # A release tag, a repair of one, and a refresh all build both. The refresh must,
+            # because its release can become GitHub's "latest" and the README sends people to
+            # either variant — see `publish-refresh`.
+            v="both"
           fi
           case "$v" in
             lite)    echo 'matrix={"variant":["lite"]}' >> "$GITHUB_OUTPUT" ;;
@@ -281,3 +298,76 @@ jobs:
         run: |
           python3 builder/prune-releases.py --keep 3 --repo "$GITHUB_REPOSITORY" --apply \
             || { echo "::warning::retention did not run: prune-releases.py failed. The release itself is fine; old patch releases are still there."; exit 1; }
+
+  # The monthly (or dispatched) OS refresh. It publishes a DATED release — never a `v*` one —
+  # and only when something actually changed.
+  #
+  # This is the deliberate exception to "an automated publication is a controller release or
+  # nothing". A refresh IS complete and identified: both variants, the full evidence set, and a
+  # provenance record naming the controller commit and the builder revision it ran. What it is
+  # not is a controller RELEASE, and it must never look like one — so its tag carries no `v`,
+  # which also keeps it invisible to `prune-releases.py` (that reads `v<major>.<minor>.<patch>`
+  # and skips everything else, so a refresh can neither be deleted by retention nor shift the
+  # minor line the retention rule protects).
+  publish-refresh:
+    needs: build
+    # NOT always(): a refresh must not publish a partial set. Its release can become GitHub's
+    # "latest" and the README sends users to either image, so a Lite-only refresh would
+    # advertise a Desktop image that is not there — and its signature would differ from the
+    # previous two-image one purely BECAUSE Desktop was missing, i.e. a failed build would read
+    # as "something changed". `publish-tag` keeps its per-variant independence for hand-made
+    # tags; this job requires the whole matrix.
+    if: ${{ needs.build.result == 'success' && (github.event_name == 'schedule' || github.event.inputs.refresh == 'true') }}
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with: { path: dl }
+      - name: Assemble both variants, compare the full signature, publish only on a change
+        run: |
+          set -euo pipefail
+          mkdir -p rel
+          for v in lite desktop; do
+            img="dl/image-$v/loraham-lhpc-$v.img.xz"
+            [ -f "$img" ] || { echo "no image for $v"; continue; }
+            sz=$(stat -c%s "$img"); [ "$sz" -le 2147483648 ] || { echo "::error::$v $sz > 2GiB"; exit 1; }
+            cp "dl/image-$v/loraham-lhpc-$v.img.xz" "dl/image-$v/loraham-lhpc-$v.img.xz.sha256" rel/
+            cp "dl/logs-$v/lhpc-image.json"    "rel/provenance-$v.json"
+            cp "dl/logs-$v/lhpc-packages.log"  "rel/packages-$v.txt"
+            cp "dl/logs-$v/lhpc-versions.log"  "rel/components-$v.txt"
+          done
+          for v in lite desktop; do
+            [ -f "rel/loraham-lhpc-$v.img.xz" ] \
+              || { echo "::error::a refresh publishes BOTH variants or none - $v is missing"; exit 1; }
+            for f in "loraham-lhpc-$v.img.xz.sha256" "provenance-$v.json" "packages-$v.txt" "components-$v.txt"; do
+              [ -s "rel/$f" ] || { echo "::error::$v is missing evidence: $f"; exit 1; }
+            done
+          done
+          ( cd rel && sha256sum ./*.img.xz > SHA256SUMS )
+          SIG="$(python3 builder/signature.py rel)"; printf '%s\n' "$SIG" > rel/signature.txt
+          echo "this build's signature: $SIG"
+
+          # Compare against whatever is newest, `v*` release or previous refresh alike: the
+          # question is only "is the image people would download already this image?".
+          OLD=""
+          last="$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)"
+          if [ -n "$last" ]; then
+            gh release download "$last" -p signature.txt -D prev 2>/dev/null || true
+            OLD="$(cat prev/signature.txt 2>/dev/null || echo '')"
+          fi
+          echo "newest existing release (${last:-none}) signature: ${OLD:-none}"
+          if [ -n "$OLD" ] && [ "$SIG" = "$OLD" ]; then
+            echo "NO CHANGE — base, packages, controller and composition are identical to $last."
+            echo "Finishing green without a duplicate release."
+            exit 0
+          fi
+
+          TAG="img-$(date -u +%Y.%m.%d-%H%M)"
+          echo "CHANGE detected — publishing $TAG"
+          gh release create "$TAG" rel/* --title "$TAG" \
+            --notes "Operating-system refresh of the current controller image. Not a controller release: the LHPC version is unchanged and is recorded in each provenance file. signature: $SIG"
+          echo "published $TAG"

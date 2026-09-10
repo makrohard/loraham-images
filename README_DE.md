@@ -108,7 +108,7 @@ AP_PSK=choose-a-wifi-key
 WIFI_COUNTRY=DE
 TIMEZONE=Europe/Berlin
 KEYBOARD=de,us
-CALL=DJ0CHE
+CALL=N0CALL
 ```
 
 Nach einem erfolgreichen ersten Start überschreibt die Box `PASSWORD=` und `AP_PSK=` in dieser Datei

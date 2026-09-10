@@ -196,6 +196,44 @@ are installed explicitly root-owned, so they were never affected.
   the base version and advance only when the base rolls. All other packages ARE brought current. The
   build fails closed if any hold survives or `update-initramfs` isn't restored to the real binary.
 
+## Monthly OS refresh (dated releases)
+- **Why it exists:** every build resolves the latest official base and runs a full-upgrade, so any
+  build produces a current image. Between releases nothing triggered one. The release bot only
+  tags when an eligible **pin** moves, so a quiet month left the image on the download page ageing
+  on its security updates. `schedule: '0 4 1 * *'` closes that; `refresh: true` on a dispatch does
+  the same on demand.
+- **What it publishes:** a **dated** release, `img-YYYY.MM.DD-HHMM` — never a `v*` one — and only
+  when `builder/signature.py` says the full signature (base + packages + controller + component
+  composition) differs from the newest existing release. Identical means finish green, no
+  duplicate.
+- **"Changed" is currently broader than "the OS changed", and that is a live decision.**
+  `signature.py` also signs `image_build_commit` — deliberately, added by an audit fix (`4a4d8dd`)
+  *after* the refresh already existed, so the interaction was never revisited. The consequence: a
+  month in which this repository received **any** commit, a documentation one included, makes the
+  next refresh publish a dated release even when the base, packages, controller and composition
+  are all identical. Measured, not assumed: an identical rebuild produces an identical signature
+  and publishes nothing; a rolled base changes it; a changed builder revision alone also changes
+  it. That is bounded waste, not a correctness problem, and narrowing it would mean undoing an
+  audited decision — so it is recorded here rather than quietly changed.
+- **This is the deliberate exception to "an automated publication is a controller release or
+  nothing".** A refresh IS complete and identified — both variants, the full evidence set, and a
+  provenance record naming the controller commit and the builder revision that ran. What it is
+  not is a controller *release*, and its tag must never look like one.
+- **Both variants or none.** The dated release can become GitHub's `latest`, and both READMEs send
+  people to `/releases/latest`, so a Lite-only refresh would advertise a Desktop image that is not
+  there — and its signature would differ from the previous two-image one purely because Desktop
+  was missing, i.e. a failed build would read as "something changed". `publish-tag` keeps its
+  per-variant independence for hand-made tags; the refresh does not get it.
+- **It cannot disturb the release bot.** `prune-releases.py` reads `v<major>.<minor>.<patch>` and
+  skips everything else, so a dated release is neither deletable by retention nor able to move the
+  minor line retention protects. The bot addresses images **by tag** and finds its own build by
+  `head_branch == <tag>`; a refresh runs on `main` and matches nothing it looks for.
+- **Known interaction, accepted:** a refresh and a bot release use different concurrency groups,
+  so in principle both could build at once. The schedules make it near-impossible (bot: Mondays
+  21:30 UTC; refresh: the 1st at 04:00 UTC) and correctness does not depend on it — the bot waits
+  on its own run id. Serialising them was rejected: it could park the bot's image behind a
+  five-hour refresh and burst its stage bound.
+
 ## LHPC + binary channel (pin-of-pins)
 - Each run resolves `loraham-pi-control` `main` and records the installed SHA in
   `/etc/lhpc-image.json`; that commit pins daemon/bridge/meshcom-qemu/firmware, and the binary

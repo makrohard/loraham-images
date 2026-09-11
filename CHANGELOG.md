@@ -2,6 +2,14 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.4.0
+
+- Rebuild on `loraham-pi-control` **v0.4.0** (`c3f8d0a`); see that repo's changelog. The daemon and
+  the shared chat source move to `82c82c3` (the restructured daemon repository), the KISS TNC to
+  `e7646c1` and openhop-repeater to `c02b3cb`; the daemon binary was republished from the tagged
+  v0.3.16 commit before this image. v0.4.0 is the release whose full test matrix ran on the
+  reference box.
+
 ## v0.3.15
 
 - Rebuild on `loraham-pi-control` **v0.3.15** (`f3db4aa`); see that repo's changelog.

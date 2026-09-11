@@ -342,17 +342,29 @@ Beide im Browser installieren, mit den Anleitungen unten: die CA als Zertifizier
 #### 7.2 · Freigeben — erst die Stack-Oberflächen, dann die Konsole
 
 - **Apps → LoRaHAM Pi Control → Webserver (HTTPS / mTLS) → Stacks WebGUIs**<br>
-  Fünf Felder, dann Apply: **Access** `lan` (wer die Proxys erreichen darf), **Scheme** `https`
-  (http erzwingt no-auth, https hält die Zertifikats-Anmeldung offen), **Access mode**
-  `local-open-remote-auth`, **Allowed CIDRs** das Netz, aus dem du kommst — z. B. `192.168.1.0/24`,
-  für lan und public Pflicht — und **Confirm** `enable-remote`. Eine Richtlinie deckt jede
-  Stack-Oberfläche ab, die Ports bleiben pro Seite; die Einzel-Panels bleiben für Ausnahmen.
-  (`enable-remote-danger` ist die Phrase für die riskanteren Fälle — öffentlicher Listener, gar
-  keine Anmeldung oder unverschlüsseltes HTTP.)
+  Fünf Felder, von oben nach unten, dann **Apply**:
+
+  1. **Access** → `lan` — wer die Proxys erreichen darf.
+  2. **Scheme** → `https` — `http` erzwingt no-auth, `https` hält die Zertifikats-Anmeldung
+     offen.
+  3. **Access mode** → `local-open-remote-auth` — auf dem Pi selbst offen, von überall sonst mit
+     Zertifikat.
+  4. **Allowed CIDRs** → bei Lite `10.42.0.0/24` **und** `192.168.1.0/24`, siehe unten; bei
+     Desktop nur dein Netz. Für `lan` und `public` Pflicht.
+  5. **Confirm** → `enable-remote` — oder `enable-remote-danger` für die riskanteren Fälle:
+     öffentlicher Listener, gar keine Anmeldung oder unverschlüsseltes HTTP.
+
+  Bei **Lite** jedes Mal beide eintragen — das Feld ERSETZT den bisherigen Inhalt. `10.42.0.0/24`
+  ist der eigene AP der Box ohne Bildschirm, der einzige Weg hinein, sobald sie dein WLAN verlassen
+  hat; `192.168.1.0/24` (dein eigenes) ist das Netz aus Schritt 10. **Desktop** baut keinen AP auf,
+  dort genügt dein Netz.
+
+  Eine Richtlinie deckt jede Stack-Oberfläche ab, die Ports bleiben pro Seite; die Einzel-Panels
+  bleiben für Ausnahmen.
 
 - **Apps → LoRaHAM Pi Control → Webserver (HTTPS / mTLS) → LHPC WebGUI**<br>
-  Dieselben Werte für Scheme, Access mode, Allowed CIDRs und Confirm, dazu **Bind** `0.0.0.0`, damit
-  sie über Loopback hinaus lauscht. Die Konsole zuletzt: Es ist die Seite, auf der du gerade
+  Dieselben Werte für Scheme, Access mode, Allowed CIDRs und Confirm, dazu **Bind** `0.0.0.0`,
+  damit sie über Loopback hinaus lauscht. Die Konsole zuletzt: Es ist die Seite, auf der du gerade
   arbeitest.
 
 #### 7.3 · Aktivieren — auf der Box, per SSH
@@ -442,6 +454,10 @@ lhpc webserver cert export lhpc-laptop ~/lhpc-laptop.p12
 lhpc webserver proxy meshcom    --auth local-open-remote-auth --confirm-phrase enable-remote
 lhpc webserver proxy meshtastic --auth local-open-remote-auth --confirm-phrase enable-remote
 lhpc webserver proxy graywolf   --auth local-open-remote-auth --confirm-phrase enable-remote
+# Diese setzen nur den Access mode. Weggelassene Optionen BEHALTEN, was eine Seite schon hat — die
+# Kurzform funktioniert also, weil das Image jede Seite mit Mode, Port und Scheme ausliefert. Eine
+# nie konfigurierte Seite braucht sie ausgeschrieben:
+#   --mode lan --port <port> --scheme https --cidr <bereich> (wiederholbar)
 lhpc webserver expose --cidr 10.42.0.0/24 --access-mode local-open-remote-auth --confirm-phrase enable-remote
 sudo bash ~/loraham-pi-control/config/files/firewall/firewall-apply.sh   # Gate: ohne das keine Freigabe
 lhpc webserver apply                                                     # prüfen + aktivieren
@@ -456,18 +472,32 @@ scp lhpc@10.42.0.1:loraham-pi-control/config/tls/server-ca/ca.crt .
 
 <details><summary><em>Konsole aus einem anderen Netz erreichen (LAN)</em></summary>
 
-Ist das Zertifikat installiert, ist ein weiteres Netz ein einziger Befehl auf dem Pi (`--cidr`
-pro Bereich wiederholen) — auf **Lite** erledigt das Network-Panel das für dich, wenn du deinem
-WLAN beitrittst (Schritt 10):
+Ist das Zertifikat installiert, sind es ein paar Befehle auf dem Pi — auf **Lite** erledigt das
+Network-Panel das für dich, wenn du deinem WLAN beitrittst (Schritt 10), und das ist der sicherere
+Weg: Es ERGÄNZT das neue Netz und behält alles bereits Erlaubte.
 
 ```bash
-lhpc webserver expose --cidr 192.168.1.0/24 --access-mode local-open-remote-auth --confirm-phrase enable-remote
+lhpc webserver configure --ip 10.42.0.1 --ip 192.168.1.10   # jede Adresse, die du aufrufst
+lhpc webserver tls-renew                                    # das Zertifikat muss sie führen
+lhpc webserver expose --cidr 10.42.0.0/24 --cidr 192.168.1.0/24 \
+    --access-mode local-open-remote-auth --confirm-phrase enable-remote
 lhpc webserver apply
 ```
+
+> [!WARNING]
+> `--cidr` und `--ip` **ERSETZEN** ihre Listen — sie ergänzen sie nicht. Führst du `expose` nur mit
+> deinem LAN-Bereich aus, ist `10.42.0.0/24` weg, und damit der Access Point: der einzige Weg
+> zurück in eine Box, die dein Netz verlassen hat. Wiederhole jedes Mal jeden Bereich, den du
+> willst. Für `--ip` gilt dasselbe, und eine später ergänzte SAN braucht `tls-renew` — `apply` lädt
+> nginx neu, stellt das Zertifikat aber nie neu aus. Die Adresse ist dann gespeichert, nicht
+> ausgeliefert; der Browser lehnt sie ab, während jeder Status-Befehl die Konfiguration als
+> angewendet meldet.
+
 `local-open-remote-auth` lässt die Konsole **auf dem Pi selbst** offen und verlangt von überall
-sonst das Zertifikat. `lhpc webserver cert list` zeigt, was ausgestellt ist; `revoke` zieht
-eines zurück. Einen Port am Router öffnen bleibt deine Sache — LHPC fasst weder deinen Router
-noch deine eigene Firewall an.
+sonst das Zertifikat. `lhpc webserver cert list` zeigt, was ausgestellt ist;
+`cert revoke <label> --confirm-label <label>` zieht eines zurück — das Label wird bewusst zweimal
+getippt, denn das falsche Zertifikat zurückzuziehen sperrt dich aus. Einen Port am Router öffnen
+bleibt deine Sache — LHPC fasst weder deinen Router noch deine eigene Firewall an.
 </details>
 
 ### 8 · Die zwei ausgelieferten Voreinstellungen ändern

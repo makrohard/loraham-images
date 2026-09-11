@@ -323,13 +323,24 @@ your own certificate — that one asks for the passphrase you copied.
 #### 7.2 · Expose — the stack UIs, then the console
 
 - **Apps → LoRaHAM Pi Control → Webserver (HTTPS / mTLS) → Stacks WebGUIs**<br>
-  Five fields, then Apply: **Access** `lan` (who may reach the proxies), **Scheme** `https` (http
-  forces no-auth, so https is what keeps certificate auth possible), **Access mode**
-  `local-open-remote-auth`, **Allowed CIDRs** the network you are coming from — e.g.
-  `192.168.1.0/24`, required for lan and public — and **Confirm** `enable-remote`. One policy covers
-  every stack web UI at once and the ports stay per page; the per-stack panels remain for
-  exceptions. (`enable-remote-danger` is the phrase for the riskier cases — a public listener, no
-  authentication at all, or plain HTTP.)
+  Five fields, top to bottom, then **Apply**:
+
+  1. **Access** → `lan` — who may reach the proxies.
+  2. **Scheme** → `https` — `http` forces no-auth, so `https` is what keeps certificate auth
+     possible.
+  3. **Access mode** → `local-open-remote-auth` — open on the Pi itself, certificate from
+     anywhere else.
+  4. **Allowed CIDRs** → on Lite `10.42.0.0/24` **and** `192.168.1.0/24`, see below; on Desktop
+     your network alone. Required for `lan` and `public`.
+  5. **Confirm** → `enable-remote` — or `enable-remote-danger` for the riskier cases: a public
+     listener, no authentication at all, or plain HTTP.
+
+  On **Lite** name both, every time — the field REPLACES what was there. `10.42.0.0/24` is the
+  headless box's own AP, the only way in once it has left your Wi-Fi; `192.168.1.0/24` (use your
+  own) is the network you join in step 10. **Desktop** makes no AP, so your network alone is right.
+
+  One policy covers every stack web UI at once and the ports stay per page; the per-stack panels
+  remain for exceptions.
 
 - **Apps → LoRaHAM Pi Control → Webserver (HTTPS / mTLS) → LHPC WebGUI**<br>
   The same Scheme, Access mode, Allowed CIDRs and Confirm, plus **Bind** `0.0.0.0` so it listens
@@ -420,6 +431,9 @@ lhpc webserver cert export lhpc-laptop ~/lhpc-laptop.p12
 lhpc webserver proxy meshcom    --auth local-open-remote-auth --confirm-phrase enable-remote
 lhpc webserver proxy meshtastic --auth local-open-remote-auth --confirm-phrase enable-remote
 lhpc webserver proxy graywolf   --auth local-open-remote-auth --confirm-phrase enable-remote
+# These set the access mode only. Omitted flags KEEP what a page already has, so this short form
+# works because the image ships each page with a mode, port and scheme. A page never configured
+# needs them named: --mode lan --port <port> --scheme https --cidr <range> (repeatable).
 lhpc webserver expose --cidr 10.42.0.0/24 --access-mode local-open-remote-auth --confirm-phrase enable-remote
 sudo bash ~/loraham-pi-control/config/files/firewall/firewall-apply.sh   # gate: exposure needs this
 lhpc webserver apply                                                     # validate + activate
@@ -434,15 +448,30 @@ scp lhpc@10.42.0.1:loraham-pi-control/config/tls/server-ca/ca.crt .
 
 <details><summary><em>Reach the console from another network (LAN)</em></summary>
 
-With the certificate installed, allowing another network is one command on the Pi (repeat `--cidr`
-per range) — on **Lite** the Network panel does this for you when you join your Wi-Fi (step 10):
+With the certificate installed, allowing another network is a handful of commands on the Pi — on
+**Lite** the Network panel does this for you when you join your Wi-Fi (step 10), and it is the
+safer route, because it ADDS the new network and keeps everything already allowed:
 
 ```bash
-lhpc webserver expose --cidr 192.168.1.0/24 --access-mode local-open-remote-auth --confirm-phrase enable-remote
+lhpc webserver configure --ip 10.42.0.1 --ip 192.168.1.10   # every address you browse to
+lhpc webserver tls-renew                                    # the cert must carry them
+lhpc webserver expose --cidr 10.42.0.0/24 --cidr 192.168.1.0/24 \
+    --access-mode local-open-remote-auth --confirm-phrase enable-remote
 lhpc webserver apply
 ```
+
+> [!WARNING]
+> `--cidr` and `--ip` **REPLACE** their lists — they do not add. Run `expose` with your LAN range
+> alone and `10.42.0.0/24` is gone, which locks you out of the access point: the one route back
+> into a box that has left your network. Repeat every range you want, every time. The same applies
+> to `--ip`, and a SAN added later needs `tls-renew` — `apply` reloads nginx but never re-issues
+> the certificate, so the address is saved, not served, and the browser rejects it while every
+> status command says the configuration is applied.
+
 `local-open-remote-auth` keeps the console open **on the Pi itself** and requires the certificate
-from everywhere else. `lhpc webserver cert list` shows what is issued; `revoke` withdraws one.
+from everywhere else. `lhpc webserver cert list` shows what is issued;
+`cert revoke <label> --confirm-label <label>` withdraws one — the label is typed twice on purpose,
+because revoking the wrong credential is how you lock yourself out.
 Opening a port at your router stays your job — LHPC never edits your router or your own firewall.
 </details>
 

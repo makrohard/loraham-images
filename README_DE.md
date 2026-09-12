@@ -454,6 +454,7 @@ lhpc webserver cert export lhpc-laptop ~/lhpc-laptop.p12
 lhpc webserver proxy meshcom    --auth local-open-remote-auth --confirm-phrase enable-remote
 lhpc webserver proxy meshtastic --auth local-open-remote-auth --confirm-phrase enable-remote
 lhpc webserver proxy graywolf   --auth local-open-remote-auth --confirm-phrase enable-remote
+lhpc webserver proxy reticulum  --auth local-open-remote-auth --confirm-phrase enable-remote
 # Diese setzen nur den Access mode. Weggelassene Optionen BEHALTEN, was eine Seite schon hat — die
 # Kurzform funktioniert also, weil das Image jede Seite mit Mode, Port und Scheme ausliefert. Eine
 # nie konfigurierte Seite braucht sie ausgeschrieben:

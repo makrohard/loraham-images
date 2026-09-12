@@ -31,7 +31,8 @@ https://github.com/makrohard/loraham-images#install
 ## What is already set up
 
 - Console on **https://@AP_ADDR@:@CONSOLE_PORT@**, MeshCom on **:8444**, Meshtastic on **:8445**,
-  Graywolf APRS on **:8446** — all reachable from this access point only. The console and the first
+  Graywolf APRS on **:8446**, MeshChat (Reticulum) on **:8447** — all reachable from this access
+  point only. The console and the first
   two need no password; Graywolf has a login of its own, shown on its stack page after you start it
   once.
 - The managed firewall is **already applied**: the stacks' own ports are blocked, so those proxies

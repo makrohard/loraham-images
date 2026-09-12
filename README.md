@@ -431,6 +431,7 @@ lhpc webserver cert export lhpc-laptop ~/lhpc-laptop.p12
 lhpc webserver proxy meshcom    --auth local-open-remote-auth --confirm-phrase enable-remote
 lhpc webserver proxy meshtastic --auth local-open-remote-auth --confirm-phrase enable-remote
 lhpc webserver proxy graywolf   --auth local-open-remote-auth --confirm-phrase enable-remote
+lhpc webserver proxy reticulum  --auth local-open-remote-auth --confirm-phrase enable-remote
 # These set the access mode only. Omitted flags KEEP what a page already has, so this short form
 # works because the image ships each page with a mode, port and scheme. A page never configured
 # needs them named: --mode lan --port <port> --scheme https --cidr <range> (repeatable).
@@ -657,6 +658,8 @@ below; each project remains under its own license (notice files ship inside the 
 - **[Reticulum](https://github.com/markqvist/Reticulum)** and
   **[LXMF](https://github.com/markqvist/LXMF)** — © Mark Qvist · Reticulum License;
   **[NomadNet](https://github.com/markqvist/NomadNet)** — © Mark Qvist · GPL-3.0.
+- **[Reticulum MeshChat](https://github.com/liamcottle/reticulum-meshchat)** — © Liam Cottle · MIT · the browser client for the Reticulum stack, shipped with its
+  prebuilt web bundle; source for the pinned version is at the link.
 - **[MeshCom firmware](https://github.com/icssw-org/MeshCom-Firmware)** — © ICSSW · MIT.
 - **[openHop](https://github.com/openhop-dev)** — © Lloyd Newton · MIT. The MeshCore
   implementation this image runs: **[openHop Core](https://github.com/openhop-dev/openhop_core)**,

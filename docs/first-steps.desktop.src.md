@@ -27,7 +27,7 @@ cannot lock you out.
 ## What is already set up
 
 - Console on **https://127.0.0.1:@CONSOLE_PORT@**, MeshCom on **:8444**, Meshtastic on **:8445**,
-  Graywolf APRS on **:8446** — all on this Pi only. The stacks are not exposed to any network.
+  Graywolf APRS on **:8446**, MeshChat (Reticulum) on **:8447** — all on this Pi only. The stacks are not exposed to any network.
   Graywolf has a login of its own, shown on its stack page after you start it once.
 - The managed firewall is **already applied**; the stacks' own ports are blocked.
 - Regional defaults are **German**: timezone **@TIMEZONE@**, Wi-Fi country **@WIFI_COUNTRY@**,

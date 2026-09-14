@@ -2,12 +2,11 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
-## Unreleased
+## v0.5.1
 
-- Desktop image slimming at build time: optional applications purged and unused message
-  catalogues, Chromium UI translations and wallpapers removed, keeping German and English.
-  Nothing persistent is shipped, upstream drift fails soft while a mutation failure fails closed,
-  and each Desktop release carries a `slim-report-desktop.txt`. Lite is untouched.
+- Desktop image slimmed at build time: **−306 MiB**, headroom to the 2 GiB cap 81 → 387 MiB.
+  Nothing persistent ships; each Desktop release carries a `slim-report-desktop.txt`.
+  Same controller as v0.5.0 (`35ed070`). Lite unchanged.
 
 ## v0.5.0
 

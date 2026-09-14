@@ -373,6 +373,20 @@ if [ -d "$CLONE" ]; then
   rm -rf "$CLONE"
 fi
 
+# ---- 9d. Desktop image slimming (BUILD-ONLY) -------------------------------
+# Removes optional applications and unused localisation/wallpaper data so the released Desktop
+# .img.xz keeps room under the 2 GiB release cap. Runs HERE — after every installation step and
+# before the dpkg gate below. Fail-soft BEFORE it removes anything: a target that moved, vanished
+# or grew a dependant is a warning and that group ships intact. Fail-CLOSED after: see below.
+# Nothing persistent is installed; build.sh deletes the script and its list again at disarm.
+# Lite is untouched by design.
+if [ -x /usr/local/sbin/lhpc-slim ]; then
+  say "image slimming (variant=$VARIANT)"
+  # Non-zero is slimming's DELIBERATE answer to a failure past its mutation boundary: some of a
+  # group may already be gone, so the image cannot be described and must not be published.
+  /usr/local/sbin/lhpc-slim "$VARIANT" || die "image slimming failed after it began mutating — see /var/log/lhpc-slim.log"
+fi
+
 # ---- 10. remove build-time holds; fail closed on a broken dpkg state -------
 # The kernel/boot holds were only to survive in-container initramfs generation. Remove them so
 # the released device can update those packages (the operator's `apt full-upgrade` must not be

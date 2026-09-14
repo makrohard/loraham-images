@@ -216,5 +216,24 @@ else
   die "seal failed: overlay dir '$OVERLAY' is not a directory — the ownership assertion cannot run"
 fi
 
+# (i) no build scaffolding survives. Everything below is installed into the guest by build.sh
+# purely so provision.sh can run it, and removed again by build.sh's disarm step. None of it has
+# any business on a released device, and until now "disarm removed it" was a claim about the
+# builder rather than a fact about the image. Assert it where the image is final.
+scaffolding=()
+for rel in usr/local/sbin/lhpc-provision \
+           usr/local/sbin/lhpc-check-composition \
+           usr/local/sbin/lhpc-slim \
+           usr/local/share/lhpc-slim.list \
+           etc/systemd/system/lhpc-provision.service \
+           etc/systemd/system/multi-user.target.wants/lhpc-provision.service; do
+  if [ -e "$ROOT/$rel" ] || [ -L "$ROOT/$rel" ]; then scaffolding+=("/$rel"); fi
+done
+if [ "${#scaffolding[@]}" -gt 0 ]; then
+  printf 'build scaffolding survived disarm:\n'; printf '  %s\n' "${scaffolding[@]}"
+  die "seal failed: build-only payload present in the final image"
+fi
+log "assert OK: no build scaffolding in the image"
+
 group_end
 log "SEAL OK"

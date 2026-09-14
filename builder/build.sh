@@ -165,6 +165,13 @@ install -m0755 "$_here/provision.sh" "$ROOT/usr/local/sbin/lhpc-provision"
 # LHPC's own GUI-availability predicate and its own identity verifiers, so this builder never
 # re-derives which components a Lite image is allowed to omit.
 install -m0755 "$_here/check-composition.py" "$ROOT/usr/local/sbin/lhpc-check-composition"
+# Desktop-only, BUILD-ONLY image slimming: the script and its list are staged here and removed
+# again in the disarm step below, so nothing of this machinery ships. Lite is never slimmed — it
+# sits far below the cap and has no problem worth solving.
+if [ "$VARIANT" = "desktop" ]; then
+  install -m0755 "$_here/slim.sh"            "$ROOT/usr/local/sbin/lhpc-slim"
+  install -D -m0644 "$_here/slim-packages.list" "$ROOT/usr/local/share/lhpc-slim.list"
+fi
 cat > "$ROOT/etc/systemd/system/lhpc-provision.service" <<'EOF'
 [Unit]
 Description=loraham-images provisioning (BUILD-ONLY)
@@ -241,6 +248,8 @@ rm -f "$ROOT/etc/systemd/system/multi-user.target.wants/lhpc-provision.service"
 rm -f "$ROOT/etc/systemd/system/lhpc-provision.service"
 rm -f "$ROOT/usr/local/sbin/lhpc-provision"
 rm -f "$ROOT/usr/local/sbin/lhpc-check-composition"
+rm -f "$ROOT/usr/local/sbin/lhpc-slim"
+rm -f "$ROOT/usr/local/share/lhpc-slim.list"
 BUILD_MASKS="NetworkManager.service wpa_supplicant.service systemd-networkd.service ssh.service \
              systemd-timesyncd.service dphys-swapfile.service"
 for u in $BUILD_MASKS; do
@@ -319,6 +328,33 @@ sz="$(stat -c%s "$FINAL")"
 log "final compressed size: $sz bytes ($(numfmt --to=iec "$sz")) — cap $CAP ($(numfmt --to=iec "$CAP"))"
 ( cd "$OUT" && sha256sum "$(basename "$FINAL")" > "$(basename "$FINAL").sha256" )
 echo "$sz" > "$OUT/$VARIANT.size"
+# Append the only numbers slim.sh cannot know — it measures raw filesystem bytes inside the guest,
+# long before compression. The target is the EXTERNAL copy collected above; the image is sealed and
+# Gate A2 has run against it, so nothing here may touch it.
+SLIM_REPORT="$OUT/logs-$VARIANT/lhpc-slim.log"
+if [ -s "$SLIM_REPORT" ]; then
+  head_room=$(( CAP - sz ))
+  {
+    printf 'final %s: %s bytes (%s) — cap %s, headroom %s\n' \
+           "$(basename "$FINAL")" "$sz" "$(numfmt --to=iec "$sz")" \
+           "$(numfmt --to=iec "$CAP")" "$(numfmt --to=iec "$head_room")"
+  } >> "$SLIM_REPORT"
+  # Surface the guest's warnings as real run annotations. slim.sh cannot do this itself: inside
+  # the nspawn console every line carries a systemd prefix, and the runner only honours a workflow
+  # command at the start of a line, so its own ::warning:: was literal text (measured on run
+  # 34864391240). Here we are on the host and on stdout, where the rule holds. A clean build has
+  # no such lines and this loop runs zero times.
+  sed -n 's/^.*slim WARNING: //p' "$SLIM_REPORT" | while IFS= read -r _w; do
+    printf '::warning::slim (%s): %s\n' "$VARIANT" "$_w"
+  done
+  # Soft gate: announce the squeeze while there is still room to act. The hard cap below stays
+  # fail-closed; this one only warns.
+  if [ "$head_room" -lt $((250 * 1024 * 1024)) ]; then
+    warn "$VARIANT image headroom $(numfmt --to=iec "$head_room") is under 250 MiB — review $SLIM_REPORT"
+    printf '::warning::%s image headroom %s under 250 MiB — review slim-report-%s.txt\n' \
+           "$VARIANT" "$(numfmt --to=iec "$head_room")" "$VARIANT"
+  fi
+fi
 if [ "$sz" -gt "$CAP" ]; then
   die "final $VARIANT asset $sz bytes EXCEEDS the 2 GiB cap ($CAP) — reduce transient data / improve build"
 fi

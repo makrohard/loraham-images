@@ -23,7 +23,34 @@ A checklist for the repo owner. What CI enforces vs. what is manual, plus the ho
   `lhpc-config.txt` parser against valid/misspelled/invalid input; strict phase-boundary detach
   under injected unmount/losetup failures; recovery-AP persisted-profile handling; and the
   device-suffix derivation being identical in `lhpc-firstboot` and `lhpc-recovery-ap`
-- final compressed size ≤ 2 GiB
+- final compressed size ≤ 2 GiB (hard, fail-closed); a **soft warning** fires below 250 MiB of headroom
+
+## Desktop image slimming
+
+The Desktop image is slimmed at build time so it keeps room under that cap: optional applications
+are purged (`builder/slim-packages.list`) and unused message catalogues, Chromium UI translations
+and wallpapers are removed (`builder/slim.sh`, Desktop only — Lite is untouched). Both files are
+staged into the guest for the build and deleted again at disarm: **nothing of it ships**, no dpkg
+rule and no apt pin, so a deployed box keeps normal upgrade behaviour and may legitimately regain
+some of it on a later `apt full-upgrade`.
+
+Every group is fail-soft **up to the point where something is actually removed**. A package that
+is not installed, a purge that would drag a second package out or quietly install a replacement, a
+simulation that fails, a missing keep-anchor, or a wallpaper referenced from `/etc` that is outside
+the keep set all mark that group `STALE`/`SKIPPED`: it ships **unpruned and intact** and the build
+stays green. Upstream drift costs savings, never function.
+
+Past that point the rule inverts and the build fails. Once a purge or a deletion has begun, a
+failure can leave the group half-removed, so "ships intact" is no longer true of anything and the
+image cannot be described. `dpkg --audit` is not a substitute: it proves the dpkg database is
+consistent, which it would also be after one member was purged and the next one's removal failed.
+
+**When the base OS changes, read `slim-report-desktop.txt`** (published with every Desktop
+release, from both the tag and the refresh publisher). `STALE` or `SKIPPED` lines mean upstream
+moved something and that saving is gone until the anchors or the package list are updated; the
+appended final line gives the real `.img.xz` size and the headroom. Raw bytes freed inside the
+guest are **not** compressed bytes saved — text compresses roughly six to one, images barely at
+all — so judge the result by that final line, not by the per-entry numbers.
 
 ## Honest limits — hardware Gate B only (never claimed CI-proven)
 - real Raspberry Pi firmware/device-tree boot, SPI/GPIO, radio operation

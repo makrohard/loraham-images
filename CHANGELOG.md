@@ -2,6 +2,13 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## Unreleased
+
+- Desktop image slimming at build time: optional applications purged and unused message
+  catalogues, Chromium UI translations and wallpapers removed, keeping German and English.
+  Nothing persistent is shipped, upstream drift fails soft while a mutation failure fails closed,
+  and each Desktop release carries a `slim-report-desktop.txt`. Lite is untouched.
+
 ## v0.5.0
 
 - Rebuild on `loraham-pi-control` **v0.5.0** (`35ed070`); see that repo's changelog.

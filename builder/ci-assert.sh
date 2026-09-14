@@ -185,6 +185,55 @@ else
   fi
 fi
 
+# ---- the Desktop slimming took nothing the desktop needs (builder/slim.sh) -----------------
+# Slimming removes optional applications, message catalogues, Chromium UI translations and
+# wallpapers. What it must never do is orphan a reference or take a desktop component with it.
+# This is the non-graphical half of that proof, measured on the real sealed image; whether the
+# session actually DRAWS is Gate B, on hardware.
+# Every check here is written so that UPSTREAM moving something cannot fail the build — that is
+# the fail-soft contract, and a gate that inverted it would be worse than no gate. A check fires
+# only when the thing still exists and the piece we promised to keep is the piece that is gone.
+if [ "${VARIANT:-lite}" = "desktop" ]; then
+  # COMPOSITION requirement, not a slimming check: each of these is the reason a purge was safe.
+  # chromium is why firefox goes, wayvnc is why realvnc-vnc-server goes, and lightdm and labwc are
+  # the session that the wallpaper below is a background for. If a future base drops one of them,
+  # the corresponding removal stops being safe and someone has to decide what the image is — so
+  # failing here is the point, and it is a product decision rather than upstream drift costing a
+  # saving.
+  for p in chromium chromium-common lightdm labwc wayvnc; do
+    [ "$(dpkg-query -W -f='${db:Status-Status}' "$p" 2>/dev/null)" = installed ] \
+      || fail "Desktop composition: $p is not installed, so a slimming purge that relies on it is unsafe"
+  done
+  ok "desktop composition intact (chromium, lightdm, labwc, wayvnc)"
+
+  # Deliberately NOT asserted here: that the Chromium and message-catalogue keep sets still exist.
+  # A base that renames or drops de.pak makes slim.sh mark that group STALE and prune nothing, and
+  # the group then ships intact by design. A gate here cannot tell that apart from a prune that
+  # ate its own keep set, and would turn "upstream drift costs savings" into "upstream drift kills
+  # the build". slim.sh re-reads its anchors immediately after pruning instead, which is the only
+  # place that knows whether pruning happened at all.
+
+  # The assertion the wallpaper keep set exists for: every wallpaper /etc points at is still
+  # there. Verified against the image, not against slim.sh's own reasoning about it.
+  wp_missing=""
+  while IFS= read -r w; do
+    [ -n "$w" ] || continue
+    [ -f "$w" ] || wp_missing="$wp_missing $w"
+  done < <(grep -rhsoE '/usr/share/rpd-wallpaper/[A-Za-z0-9_.-]+\.(jpg|jpeg|png)' /etc 2>/dev/null | sort -u)
+  [ -z "$wp_missing" ] || fail "slimming orphaned a wallpaper reference in /etc:$wp_missing"
+  ok "every wallpaper referenced from /etc exists"
+
+  # Evidence only, deliberately NOT a failure: a group that was SKIPPED on collateral or went
+  # STALE is supposed to ship intact, so a still-present target is the contract working.
+  for p in rpi-userguide rpi-imager firefox realvnc-vnc-server thonny python3-mypy mypy \
+           pocketsphinx-en-us; do
+    if [ "$(dpkg-query -W -f='${db:Status-Status}' "$p" 2>/dev/null)" = installed ]; then
+      echo "  note: slim target still installed (group stale or skipped): $p"
+    fi
+  done
+  ok "slimming purge targets recorded"
+fi
+
 # no failed units — beyond known hardware/host units that cannot run in nspawn (Gate B, not here)
 raw_failed="$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}')"
 echo "  raw failed units: $(echo "$raw_failed" | tr '\n' ' ')"

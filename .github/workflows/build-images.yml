@@ -227,6 +227,14 @@ jobs:
             cp "dl/logs-$v/lhpc-image.json" "rel/provenance-$v.json" 2>/dev/null || true
             cp "dl/logs-$v/lhpc-packages.log" "rel/packages-$v.txt" 2>/dev/null || true
             cp "dl/logs-$v/lhpc-versions.log" "rel/components-$v.txt" 2>/dev/null || true
+            # Desktop ships a slimming report. Deliberately NOT `|| true` like its siblings: a
+            # missing Desktop image is fine (the loop already skipped it), but a Desktop image
+            # published WITHOUT its promised slimming evidence is a defect.
+            if [ "$v" = desktop ]; then
+              [ -s "dl/logs-desktop/lhpc-slim.log" ] \
+                || { echo "::error::desktop image is missing its slim report"; exit 1; }
+              cp "dl/logs-desktop/lhpc-slim.log" "rel/slim-report-desktop.txt"
+            fi
           done
           n=$(ls rel/*.img.xz 2>/dev/null | wc -l)
           [ "$n" -ge 1 ] || { echo "::error::no valid image assets - refusing to publish an empty release"; exit 1; }
@@ -339,6 +347,14 @@ jobs:
             cp "dl/logs-$v/lhpc-image.json"    "rel/provenance-$v.json"
             cp "dl/logs-$v/lhpc-packages.log"  "rel/packages-$v.txt"
             cp "dl/logs-$v/lhpc-versions.log"  "rel/components-$v.txt"
+            # A refresh is exactly when the Raspberry Pi base moves, which is when a slimming rule
+            # goes STALE — so the report matters most here. A refresh publishes both variants or
+            # none, so this needs no independence handling.
+            if [ "$v" = desktop ]; then
+              [ -s "dl/logs-desktop/lhpc-slim.log" ] \
+                || { echo "::error::desktop image is missing its slim report"; exit 1; }
+              cp "dl/logs-desktop/lhpc-slim.log" "rel/slim-report-desktop.txt"
+            fi
           done
           for v in lite desktop; do
             [ -f "rel/loraham-lhpc-$v.img.xz" ] \

@@ -2,6 +2,11 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.6.0
+
+- Rebuild on `loraham-pi-control` **v0.6.0** (`73a997b`) — GPS time source; see that repo's
+  changelog. First image with chrony and gpsd instead of `systemd-timesyncd`.
+
 ## v0.5.1
 
 - Desktop image slimmed at build time: **−306 MiB**, headroom to the 2 GiB cap 81 → 387 MiB.

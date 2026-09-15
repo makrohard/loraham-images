@@ -10,12 +10,11 @@
 # Either way a later `apt full-upgrade` on a DEPLOYED box may reinstall them. That is accepted and documented: the 2 GiB cap is a build-artifact
 # problem, and an apt pin here could turn a future Recommends->Depends promotion into
 # an unsatisfiable upgrade on machines in the field.
-# NEVER add chrony or gpsd, or anything they pull. They are not installed today — this base keeps
-# time with systemd-timesyncd, and neither name appears in the v0.5.0 package list — but the
-# controller's GPS time-source work installs them, and a Pi has no RTC: a box that loses both has
-# no way to learn the time after a power cut. Opting out of them is a bootstrap decision
-# (--no-time-source), never a slimming one. Check the image's own package list before concluding
-# this line has gone stale.
+# NEVER add chrony or gpsd, or anything they pull. They ARE the box's time source: the controller
+# installs both by default, and installing chrony REMOVES systemd-timesyncd, so between them they
+# are the only way a Pi learns the time after a power cut — it has no RTC. Opting out is a
+# bootstrap decision (--no-time-source), never a slimming one. Check the image's own package list
+# before concluding this line has gone stale.
 desktop purge rpi-userguide                   # the beginners' book; it is online
 desktop purge rpi-imager                      # writes SD cards — done on a PC, not on the device
 desktop purge firefox                         # second browser; x-www-browser is chromium

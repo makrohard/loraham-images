@@ -25,6 +25,14 @@ A checklist for the repo owner. What CI enforces vs. what is manual, plus the ho
   device-suffix derivation being identical in `lhpc-firstboot` and `lhpc-recovery-ap`
 - final compressed size ≤ 2 GiB (hard, fail-closed); a **soft warning** fires below 250 MiB of headroom
 
+## Version numbers
+
+**An image tag and the controller release it carries must be the same version.** `v0.5.1` is the
+one exception and predates the rule: an image-only change on an unchanged controller, tagged as an
+images patch when the correspondence was still convention rather than a rule. Alignment was
+restored at the next release. An image that changes without the controller changing still takes
+the controller's next version, so the two lines never drift again.
+
 ## Desktop image slimming
 
 The Desktop image is slimmed at build time so it keeps room under that cap: optional applications

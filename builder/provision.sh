@@ -407,7 +407,17 @@ say "no holds remain; dpkg audit clean"
 mkdir -p /etc /var/lib/lhpc
 LHPC_VER="$(as_op "$LHPC_BIN" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo unknown)"
 PKG_MANIFEST=/var/lib/lhpc/packages.manifest
-dpkg-query -W -f='${Package} ${Version}\n' | sort > "$PKG_MANIFEST"
+# `dpkg-query -W` lists every package dpkg KNOWS ABOUT, including `rc` — removed, config files
+# kept. apt REMOVES rather than purges when it resolves a conflict, so a package it took out
+# stays in the database and this file reported it as if it were installed. That made published
+# release evidence overstate the image: v0.6.0's list showed BOTH chrony and systemd-timesyncd,
+# which cannot be co-installed at all (both Provides/Conflicts/Replaces time-daemon).
+# Measured 2026-09-15 in a debian:trixie container: installing chrony prints
+# "Removing systemd-timesyncd", leaves it `rc`, and the old format string still listed it.
+# Filter on the installed state. Purged packages were always absent, which is why slimming's own
+# targets looked correct and hid this.
+dpkg-query -W -f='${db:Status-Abbrev} ${binary:Package} ${Version}\n' \
+  | awk '$1=="ii" {print $2, $3}' | sort > "$PKG_MANIFEST"
 [ -s "$PKG_MANIFEST" ] || die "package manifest is empty"
 PKG_COUNT="$(wc -l < "$PKG_MANIFEST")"
 PKG_SHA="$(sha256sum "$PKG_MANIFEST" 2>/dev/null | awk '{print $1}')"

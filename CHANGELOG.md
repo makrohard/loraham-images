@@ -17,6 +17,11 @@ Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](do
 
 - Rebuild on `loraham-pi-control` **v0.5.0** (`35ed070`); see that repo's changelog.
 
+## v0.6.2
+
+- Rebuild on `loraham-pi-control` **v0.6.2** (`e074424`): LoRaHAM daemon **1.0.0** and the KISS TNC
+  0.6.2; see that repo's changelog.
+
 ## v0.4.4
 
 - Rebuild on `loraham-pi-control` **v0.4.4** (`950a888`); see that repo's changelog.

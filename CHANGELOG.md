@@ -2,6 +2,13 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.8.1
+
+- Rebuild on `loraham-pi-control` **v0.8.1** (`d3233b4`): chat is an ordinary pinned source. The
+  v0.8.0 image build failed its composition check because chat's `artifact` flag installed the
+  daemon repository's branch tip (a documentation commit past the pin); this image is the first
+  built from 0.8.x. Pins unchanged since v0.7.0; no binary rebuilt.
+
 ## v0.8.0
 
 - Rebuild on `loraham-pi-control` **v0.8.0** (`89e5c4a`) — GPS Monitor under Position (GPS); see

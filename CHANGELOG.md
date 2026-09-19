@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.8.0
+
+- Rebuild on `loraham-pi-control` **v0.8.0** (`89e5c4a`) — GPS Monitor under Position (GPS); see
+  that repo's changelog. Pins unchanged since v0.7.0, so the three binary artifacts published at
+  cd7e1f3 still satisfy the manifest and no binary is rebuilt for this tag.
+
 ## v0.6.0
 
 - Rebuild on `loraham-pi-control` **v0.6.0** (`73a997b`) — GPS time source; see that repo's

@@ -2,6 +2,10 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.8.3
+
+- Rebuild on `loraham-pi-control` **v0.8.3** (`8f44ff3`); see that repo's changelog.
+
 ## v0.8.1
 
 - Rebuild on `loraham-pi-control` **v0.8.1** (`d3233b4`): chat is an ordinary pinned source. The

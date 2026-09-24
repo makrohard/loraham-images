@@ -2,6 +2,13 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.9.1
+
+- Rebuild on `loraham-pi-control` **v0.9.1**: the Reticulum LoRa interface's short-term airtime
+  guard defaults to 33 % (was 5 %/10 %), after a live test against a real RNode showed the box
+  could receive but not send multi-frame transfers at the old default; see that repo's changelog.
+  Pins unchanged since v0.8.3; no binary rebuilt.
+
 ## v0.9.0
 
 - Rebuild on `loraham-pi-control` **v0.9.0** (`1dfc5e8`) — the openHop plugin manager runs as

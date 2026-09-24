@@ -2,6 +2,14 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.9.2
+
+- Rebuild on `loraham-pi-control` **v0.9.2** (`71c0d39`): the MeshCom QEMU build now fetches the
+  firmware **pin** (`80b85a5` = v4.35t.09.20) — the first real MeshCom firmware change since 0.2.10
+  (every earlier artifact contained a hardcoded 674413c); the QEMU overlay was rebased and the
+  meshcom binary republished. `lhpc stack restart` brings optional components back. See that
+  repo's changelog and its live-test proof.
+
 ## v0.9.1
 
 - Rebuild on `loraham-pi-control` **v0.9.1**: the Reticulum LoRa interface's short-term airtime

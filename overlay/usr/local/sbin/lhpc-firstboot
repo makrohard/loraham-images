@@ -480,8 +480,11 @@ step_firewall(){
   if [ "$CI" = "1" ]; then
     say "CI mode: nftables apply is hardware Gate B — configuring only"
   fi
-  lhpc firewall --mode secure-default --ap on --ap-interface wlan0 \
-      --ap-cidr "$AP_CIDR" --ssh-ports 22 --allow-endpoints "" \
+  # The AP's DHCP/DNS accepts exist only where there is an AP (Lite). A Desktop joins a network
+  # instead, and a 10.42.0.0/24 accept there would only ever match someone else's hotspot subnet.
+  local ap_args=(--ap off)
+  [ "${WIFI_MODE:-}" = "ap" ] && ap_args=(--ap on --ap-interface wlan0 --ap-cidr "$AP_CIDR")
+  lhpc firewall --mode secure-default "${ap_args[@]}" --ssh-ports 22 --allow-endpoints "" \
     || fail "firewall configure failed"
   [ "$CI" = "1" ] && return 0
   # Ask lhpc to PRINT the applier rather than guessing where it wrote it — the path depends on
@@ -491,7 +494,11 @@ step_firewall(){
   [ -s "$script" ] || { rm -f "$script"; fail "firewall apply script came back empty"; }
   bash "$script" || { rm -f "$script"; fail "firewall apply failed"; }
   rm -f "$script"
-  say "firewall applied (secure-default; SSH global; stack UIs via proxy on AP only)"
+  case "${PROXY_MODE:-none}" in
+    ap)    say "firewall applied (secure-default; SSH global; stack UIs via proxy on the AP only)" ;;
+    local) say "firewall applied (secure-default; SSH global; stack UIs via loopback proxies only)" ;;
+    *)     say "firewall applied (secure-default; SSH global; stack UIs not proxied)" ;;
+  esac
 }
 step_browser_ca(){
   # Trust this box's OWN console CA in Chromium, so https://127.0.0.1:<port> loads without an

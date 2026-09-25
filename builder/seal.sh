@@ -100,6 +100,19 @@ log "assert OK: LHPC PKI absent"
 if ls "$ROOT"/etc/ssh/ssh_host_* >/dev/null 2>&1; then die "seal failed: ssh host keys present"; fi
 log "assert OK: no ssh host keys"
 
+# (c2) no all-interfaces root listener that build.sh disabled is armed again, and wayvnc (where
+# installed) listens on loopback only.
+for u in fio.service rpcbind.service rpcbind.socket saned.socket; do
+  if find "$ROOT/etc/systemd/system" -path '*.wants/*' -name "$u" | grep -q .; then
+    die "seal failed: $u is enabled — it listens on every interface as root"
+  fi
+done
+if [ -f "$ROOT/etc/wayvnc/config" ]; then
+  grep -qx 'address=127.0.0.1' "$ROOT/etc/wayvnc/config" \
+    || die "seal failed: wayvnc is not bound to loopback"
+fi
+log "assert OK: fio/rpcbind/saned not enabled; wayvnc (if present) on loopback"
+
 # (d) machine-id empty
 [ ! -s "$ROOT/etc/machine-id" ] || die "seal failed: /etc/machine-id not empty"
 log "assert OK: machine-id cleared"

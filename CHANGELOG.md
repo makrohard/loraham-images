@@ -2,6 +2,15 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+
+## Unreleased (for the image that carries LHPC 0.9.3)
+
+- `ci-assert`: `fake-hwclock-load.service` joins the units allowed to fail in the nspawn check.
+  LHPC 0.9.3's time source installs fake-hwclock (trixie 0.14 names its restore unit
+  `fake-hwclock-load.service`, not `fake-hwclock.service`), and in the container its
+  `date -s` has no CAP_SYS_TIME. Not yet proven by a build: the first image carrying 0.9.3 is
+  the proof.
+
 ## v0.9.2
 
 - Rebuild on `loraham-pi-control` **v0.9.2** (`71c0d39`): the MeshCom QEMU build now fetches the

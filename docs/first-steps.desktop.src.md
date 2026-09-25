@@ -4,7 +4,8 @@ Flashed from a **loraham-images** release. Values below come from the image's on
 
 ## Get in
 
-1. It boots to a desktop. Sign in as **@OPERATOR_USER@** / **@OPERATOR_PASSWORD@**.
+1. It boots straight to a desktop, logged in as **@OPERATOR_USER@**. The password
+   **@OPERATOR_PASSWORD@** is what `sudo` and SSH ask for.
 2. Connect Wi-Fi from the network menu, or use Ethernet.
 3. Open a browser **on this Pi**: **https://127.0.0.1:@CONSOLE_PORT@/** — first boot already trusts
    this box's CA in the pre-installed browser, so there should be no warning. In another browser,
@@ -35,7 +36,8 @@ cannot lock you out.
   first boot; afterwards change them by hand (`sudo timedatectl set-timezone …`,
   `sudo raspi-config nonint do_wifi_country …`, `/etc/default/keyboard`).
   Wi-Fi country is a regulatory setting — set your own before operating the radio.
-  A Pi has no battery clock, so an offline box keeps the time it last knew.
+  Without a battery-backed clock (a Pi 5 can take a battery for its built-in one), the time is
+  wrong after a power cut until the box reaches NTP or a GPS fix.
 - **Every stack is already installed and built** — none is running, and nothing transmits
   just from booting. Start what you want with `lhpc stack start <name>`.
 - Boot auto-restore is **on**: whatever is running when you reboot comes back by itself

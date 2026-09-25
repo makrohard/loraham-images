@@ -129,7 +129,8 @@ four xkb layout names, first is primary (e.g. `us`, or `de,us` for German with E
 ### 3 · Get in
 
 - **Lite:** join the Wi-Fi **`lhpc-XXXX`** (key **`lorahampi`**) from a phone or laptop.
-- **Desktop:** sign in on the Pi (**`lhpc`** / **`lhpc`**) and join your network (Wi-Fi menu or Ethernet).
+- **Desktop:** the Pi logs in to its desktop by itself as **`lhpc`**; the password **`lhpc`** is what
+  `sudo` and SSH ask for. Join your network (Wi-Fi menu or Ethernet).
 
 Both of those are the public factory defaults — you change them in
 [step 8](#8--change-the-two-shipped-defaults). Do it before the box goes anywhere.
@@ -152,6 +153,7 @@ the box is joined to your Wi-Fi its AP stays down.)
 | MeshCom UI | `https://10.42.0.1:8444` — AP only | `https://127.0.0.1:8444` — on the Pi only |
 | Meshtastic UI | `https://10.42.0.1:8445` — AP only | `https://127.0.0.1:8445` — on the Pi only |
 | Graywolf APRS UI | `https://10.42.0.1:8446` — AP only, **own login** | `https://127.0.0.1:8446` — on the Pi only |
+| MeshChat (Reticulum) UI | `https://10.42.0.1:8447` — AP only | `https://127.0.0.1:8447` — on the Pi only |
 | MeshCore UIs | not proxied — reach them with `lhpc webserver proxy`, or an SSH tunnel | same |
 | SSH | on, **every** network the Pi is on | on, **every** network the Pi is on |
 | firewall | on; the stacks' own ports are blocked | on; the stacks' own ports are blocked |
@@ -567,16 +569,10 @@ position.
   serial device): usable **directly**, no gpsd needed.
   **Apps → LoRaHAM Pi Control → Position (GPS)**: source **nmea** + the device path (e.g.
   `/dev/ttyAMA0`) → Save. Direct mode feeds **one** consuming stack only.
-- **No onboard GPS**: plug in a **USB receiver** (e.g. a u-blox stick) and run it through
-  **gpsd** — a system service you set up yourself, once:
-
-  ```bash
-  sudo apt install -y gpsd gpsd-clients
-  sudo systemctl enable --now gpsd
-  cgps                                   # verify: sentences scroll, and (outdoors) a fix appears
-  ```
-  Debian picks up USB receivers automatically (`USBAUTO`), and LHPC's default source (`auto`)
-  finds a local gpsd by itself — nothing else to configure.
+- **No onboard GPS**: plug in a **USB receiver** (e.g. a u-blox stick). The image already runs
+  **gpsd**, which picks up USB receivers by itself (`USBAUTO`), and LHPC's default source (`auto`)
+  finds it — nothing to install or configure. Check it under
+  **Apps → LoRaHAM Pi Control → Position (GPS) → Monitor**, or with `lhpc gps --monitor`.
 
 Every stack that can use a position has `use_gps` **on** by default, so a normal box needs nothing
 here. To turn it off (or back on) for one stack: **Apps → *stack* → Configure → `use_gps`** — the

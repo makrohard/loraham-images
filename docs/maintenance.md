@@ -9,7 +9,9 @@ A checklist for the repo owner. What CI enforces vs. what is manual, plus the ho
 - `auto-install` reported no failed/blocked stack (GUI/optional skips allowed)
 - provisioning marker `/var/lib/lhpc/.provisioned` + `/etc/lhpc-image.json` populated
 - **AP DHCP/NAT deps present** (`dnsmasq-base` + nftables/iptables) — else Lite hands out no address
-- seal: no private-key PEM markers anywhere; LHPC PKI/host-keys/machine-id gone; account hash ==
+- seal: no private-key PEM block anywhere, and every key-named file (`*.key`, `id_*`, `.p12`, …) still
+  carries the bytes its package shipped (dpkg's checksums); no pip cache; fio, rpcbind and saned not enabled, wayvnc
+  on loopback; Debian's `nftables.service` not enabled; LHPC PKI/host-keys/machine-id gone; account hash ==
   documented onboarding password; `lhpc-growroot.service` armed + `growpart` present (both
   hard-asserted), firstboot `Requires=` it, and the base's systemd `rpi-resize.service` not armed
   beside it

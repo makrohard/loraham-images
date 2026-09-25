@@ -305,6 +305,10 @@ group_end
 # clear apt caches / logs / history to shrink
 chroot "$ROOT" apt-get clean 2>/dev/null || true
 rm -rf "$ROOT/var/lib/apt/lists/"* "$ROOT/var/cache/apt/archives/"*.deb 2>/dev/null || true
+# pip's download/wheel cache from auto-install (operator) and any root-side pip run. Already
+# compressed wheels, so it costs the .img.xz nearly its full size (173 MB on Desktop v0.9.2)
+# and nothing on the box ever reads it again. seal.sh asserts it is gone.
+rm -rf "$ROOT/home/$OPERATOR_USER/.cache/pip" "$ROOT/root/.cache/pip"
 find "$ROOT/var/log" -type f -exec truncate -s0 {} + 2>/dev/null || true
 rm -f "$ROOT/root/.bash_history" "$ROOT/home/$OPERATOR_USER/.bash_history" 2>/dev/null || true
 # first-boot state must be clean so firstboot actually runs

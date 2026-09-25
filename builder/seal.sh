@@ -104,6 +104,12 @@ log "assert OK: no ssh host keys"
 [ ! -s "$ROOT/etc/machine-id" ] || die "seal failed: /etc/machine-id not empty"
 log "assert OK: machine-id cleared"
 
+# (d2) no pip cache ships. build.sh deletes it before sealing; this keeps it deleted.
+for _c in "$ROOT/home/$OP/.cache/pip" "$ROOT/root/.cache/pip"; do
+  [ ! -e "$_c" ] || die "seal failed: pip cache present at ${_c#"$ROOT"} — dead weight under the 2 GiB cap"
+done
+log "assert OK: no pip cache in the image"
+
 # (e) operator account hash corresponds to the documented onboarding password.
 # Trixie hashes are yescrypt ($y$); recompute via libcrypt (crypt(3)), which supports it.
 shadow_hash="$(awk -F: -v u="$OP" '$1==u{print $2}' "$ROOT/etc/shadow")"

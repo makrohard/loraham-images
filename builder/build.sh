@@ -290,6 +290,15 @@ ln -sf ../lhpc-recovery-ap.service "$ROOT/etc/systemd/system/multi-user.target.w
 # (ConditionFirstBoot self-disable), but make it DETERMINISTIC: explicitly unlink any enable
 # symlink so it can never ship armed alongside lhpc-growroot (seal.sh also fails closed on it).
 rm -f "$ROOT/etc/systemd/system/sysinit.target.wants/rpi-resize.service"
+# Debian's nftables.service loads /etc/nftables.conf at boot: `flush ruleset` plus an empty
+# accept-all `table inet filter`. The image's firewall is LHPC's own lhpc-firewall.service, which
+# needs nothing from it (it only orders itself after it), so the stock table did one thing on a
+# fresh box: the dashboard reported "foreign rules present" about rules nobody wrote. The package
+# enables the unit when LHPC's bootstrap installs nftables, so this undoes that on both variants.
+if [ -e "$ROOT/usr/lib/systemd/system/nftables.service" ]; then
+  systemctl --root="$ROOT" --quiet disable nftables.service || die "could not disable nftables.service"
+  log "disabled Debian's nftables.service (lhpc-firewall.service owns the ruleset)"
+fi
 # systemd-networkd-wait-online only ever fails on this NetworkManager image (networkd is unused);
 # mask it (symlink to /dev/null) so it stops surfacing as a failed unit at boot. NM provides
 # network-online.target readiness via NetworkManager-wait-online, so this is safe.

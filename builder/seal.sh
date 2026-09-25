@@ -177,6 +177,12 @@ if [ -L "$ROOT/etc/systemd/system/sysinit.target.wants/rpi-resize.service" ]; th
 fi
 log "assert OK: firstboot Requires growroot; rpi-resize not armed (single expansion owner)"
 
+# (f2) Debian's stock nftables.service is not armed next to lhpc-firewall.service.
+if find "$ROOT/etc/systemd/system" -path '*.wants/*' -name nftables.service | grep -q .; then
+  die "seal failed: nftables.service is enabled — its empty stock table reads as foreign rules on every fresh box"
+fi
+log "assert OK: Debian's nftables.service not enabled"
+
 # (h) every object the overlay maps into the image is owned by root.
 #
 # DERIVED from the source tree, never a hand-kept list — unlike the executable check above, which

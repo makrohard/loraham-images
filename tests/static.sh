@@ -16,6 +16,9 @@ python3 tests/prune-releases.py
 echo "== composition: Desktop never inherits Lite's GUI omissions =="
 python3 tests/composition-policy.py
 
+echo "== seal (j): key files must carry the bytes their package shipped =="
+python3 tests/key-files.py
+
 echo "== builder python parses (a syntax error here costs a whole image build) =="
 _pyn=0
 for f in builder/*.py; do

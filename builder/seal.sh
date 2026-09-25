@@ -47,6 +47,10 @@ rm -f "$ROOT"/etc/ssl/private/ssl-cert-snakeoil.key "$ROOT"/etc/ssl/certs/ssl-ce
 # wayvnc (Desktop) ships/generates device-specific VNC RSA + TLS keys; strip them so no shared
 # VNC key ships in the image (wayvnc regenerates its rsa key per device on first run).
 rm -f "$ROOT"/etc/wayvnc/*.pem "$ROOT"/etc/wayvnc/*.key 2>/dev/null || true
+# RealVNC writes its server key to /root/.vnc/private.key while it is installed during the build.
+# Slimming purges the package, and the purge leaves root's dotfile behind — the same key on every
+# card. It is not PEM, so assertion (a) cannot see it; assertion (j) below is the one that would.
+rm -f "$ROOT/root/.vnc/private.key"
 
 # pycryptodome ships throwaway test-vector private keys in its SelfTest suites (base
 # python3-pycryptodome + the meshcore venvs). Static library test data — not device secrets,
@@ -234,6 +238,25 @@ if [ "${#scaffolding[@]}" -gt 0 ]; then
   die "seal failed: build-only payload present in the final image"
 fi
 log "assert OK: no build scaffolding in the image"
+
+# (j) no key FILE that carries bytes the build produced. Assertion (a) reads content, so it only
+# knows the PEM format; RealVNC's key is not PEM and shipped past it. This one reads names instead,
+# then asks dpkg's own record whether the bytes are still what a package shipped: packaged bytes
+# are identical on every install, so they are public; anything else — a file no package records,
+# or a package-owned path rewritten after install — is the same secret on every card. Ownership
+# alone would not do: a postinst can rewrite a path dpkg still lists as the package's. `*.pem` is
+# left to (a): certificate bundles are PEM too, and (a) already tells a key block from a
+# certificate. The check itself is builder/check-key-files.py (tests/key-files.py covers it).
+mapfile -t keyfiles < <(find "$ROOT" -xdev -type f \( \
+    -iname '*.key' -o -iname '*private*key*' -o -iname '*_key' -o -iname '*.p12' -o -iname '*.pfx' \
+    -o -iname '*.ppk' -o -iname '*.jks' -o -iname '*.keystore' -o -iname 'secring.gpg' \
+    -o -iname 'id_rsa' -o -iname 'id_dsa' -o -iname 'id_ecdsa' -o -iname 'id_ed25519' \
+    -o -iname 'id_ecdsa_sk' -o -iname 'id_ed25519_sk' -o -path '*/private-keys-v1.d/*' \) \
+    -printf '/%P\n' 2>/dev/null)
+if ! printf '%s\n' "${keyfiles[@]}" | python3 "$_here/check-key-files.py" "$ROOT"; then
+  die "seal failed: key file(s) whose bytes no package shipped — every card would share them"
+fi
+log "assert OK: no build-produced key files (${#keyfiles[@]} key-named file(s), all byte-identical to their package)"
 
 group_end
 log "SEAL OK"

@@ -10,9 +10,9 @@ A checklist for the repo owner. What CI enforces vs. what is manual, plus the ho
 - provisioning marker `/var/lib/lhpc/.provisioned` + `/etc/lhpc-image.json` populated
 - **AP DHCP/NAT deps present** (`dnsmasq-base` + nftables/iptables) — else Lite hands out no address
 - seal: no private-key PEM markers anywhere; LHPC PKI/host-keys/machine-id gone; account hash ==
-  documented onboarding password; rootfs expansion owned SOLELY by `lhpc-growroot.service` (armed +
-  `growpart` present, both hard-asserted; firstboot `Requires=` it; base `rpi-resize` must stay
-  disabled — seal fails on a second armed resizer)
+  documented onboarding password; `lhpc-growroot.service` armed + `growpart` present (both
+  hard-asserted), firstboot `Requires=` it, and the base's systemd `rpi-resize.service` not armed
+  beside it
 - Gate A2 (throwaway copy, `--private-network`): out-of-box journey — user units, `/healthz`, web
   GUI loads, recovery sshd on all interfaces wherever `SSH_ENABLE=on` (both variants today),
   stack web-UI proxies configured per `PROXY_STACKS` (Lite only; the Desktop loopback proxies are not asserted), daemon start refused, fresh device PKI,
@@ -28,10 +28,8 @@ A checklist for the repo owner. What CI enforces vs. what is manual, plus the ho
 ## Version numbers
 
 **An image tag and the controller release it carries must be the same version.** `v0.5.1` is the
-one exception and predates the rule: an image-only change on an unchanged controller, tagged as an
-images patch when the correspondence was still convention rather than a rule. Alignment was
-restored at the next release. An image that changes without the controller changing still takes
-the controller's next version, so the two lines never drift again.
+one exception, an image-only release older than this rule. An image that changes without the
+controller changing still takes the controller's next version, so the two lines never drift.
 
 ## Desktop image slimming
 
@@ -63,10 +61,13 @@ all — so judge the result by that final line, not by the per-entry numbers.
 ## Honest limits — hardware Gate B only (never claimed CI-proven)
 - real Raspberry Pi firmware/device-tree boot, SPI/GPIO, radio operation
 - **real rootfs expansion** — CI grows a throwaway copy to *simulate* it, so a broken resize passes CI.
-  Found live 2026-08-05: the base's `rpi-resize` self-disables during our build boot → fs never grew →
-  100% full → firstboot died at ENOSPC. Fixed: `lhpc-growroot.service` (early oneshot, fail-closed,
-  growpart+resize2fs + size postconditions) is the sole owner; firstboot `Requires=` it. **A real Pi
-  first boot must still be smoke-tested after base rolls.**
+  On a Pi two steps run one after the other, never together. The base's initramfs grows partition 2
+  when `cmdline.txt` carries ` resize` (the shipped one does), gives the card a new disk ID and
+  removes the token — all before systemd starts. `lhpc-growroot.service` (early oneshot,
+  fail-closed) then grows the partition if that did not happen, grows the filesystem and checks the
+  size; firstboot `Requires=` it. The base's systemd `rpi-resize.service` is what stays disabled: it
+  self-disables during our build boot, so relying on it left the filesystem unexpanded and firstboot
+  out of space. **A real Pi first boot must still be smoke-tested after base rolls.**
 - **on-radio AP activation + live client DHCP** (nspawn has no wifi device; CI proves the
   address-dependent half and package presence, see R17)
 - **the console starting under the unit configuration we actually ship.** Gate A2 injects a
@@ -187,9 +188,8 @@ are installed explicitly root-owned, so they were never affected.
   the three nor is deleted — it is what a retry looks for. Who cut a release does not decide
   this: a hand-made patch inside the range goes like any other. It never touches a draft
   (somebody's retry) or any tag — a tag is how "image v0.3.1 carried controller c54a90f" stays
-  answerable after the assets are gone. A prune failure is a warning, not a failed release —
-  stated as one, because a step that only reddens is a step nobody opens: retention ran once in
-  thirteen releases and crashed that once, unnoticed. It reads the releases through the REST
+  answerable after the assets are gone. A prune failure is a warning, not a failed release, and
+  says so, because a step that only reddens is a step nobody opens. It reads the releases through the REST
   endpoint: `gh release list` has no `assets` field, and asking for one fails the call. Retention is bounded per line, not overall: an older line keeps every release
   it had, so total storage grows with the number of minors rather than staying at three.
 - **Repairing a published attempt:** dispatch with `publish_to_tag: vX.Y.Z` (and optionally
@@ -215,8 +215,8 @@ are installed explicitly root-owned, so they were never affected.
   (`builder/check-binary-index.py`, run offline against fixtures by `tests/static.sh`). It is driven
   FROM the manifest on `loraham-pi-control` `main` — the same source the build resolves — so a
   missing binary stack or a missing covered component fails too, not only a drifted sha; the index
-  schema must be exactly 2. That is the failure that cost images v0.1.8 an hour into provisioning;
-  it now costs seconds at the top of the run.
+  schema must be exactly 2. The failure costs seconds at the top of the run instead of an hour
+  into provisioning.
 
 ## Base image roll
 - `BASE_URL`/`BASE_SHA256` are RESOLVED each run (latest official build) and verified together; a
@@ -242,8 +242,7 @@ are installed explicitly root-owned, so they were never affected.
   composition) differs from the newest existing release. Identical means finish green, no
   duplicate.
 - **"Changed" is currently broader than "the OS changed", and that is a live decision.**
-  `signature.py` also signs `image_build_commit` — deliberately, added by an audit fix (`4a4d8dd`)
-  *after* the refresh already existed, so the interaction was never revisited. The consequence: a
+  `signature.py` also signs `image_build_commit`, deliberately. The consequence: a
   month in which this repository received **any** commit, a documentation one included, makes the
   next refresh publish a dated release even when the base, packages, controller and composition
   are all identical. Measured, not assumed: an identical rebuild produces an identical signature
@@ -288,10 +287,6 @@ are installed explicitly root-owned, so they were never affected.
 ## Dependencies to keep an eye on
 - `INVOCATION_ID`-unset operator path (delta-7 focused test): revalidate against new LHPC SHAs.
 - The base's first-user mechanism (userconf/custom.toml) — inspected per base, not hardcoded.
-- **There is no scheduled build.** An image is cut for every controller release and for nothing
-  else, so the published image always matches the latest release. The consequence, accepted
-  deliberately: a month in which only Debian packages or the Raspberry Pi base moved produces no
-  new image, and those updates reach existing boxes through `apt` rather than a reflash.
 
 ## Upstream asks (not implemented here)
 - `install.sh --ref <sha|tag>` for pinned-not-recorded reproducibility.

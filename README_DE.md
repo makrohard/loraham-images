@@ -135,8 +135,8 @@ abgewiesen — die Begründung landet als `lhpc-config-error.txt` auf demselben 
 ### 3 · Verbinden
 
 - **Lite:** verbinde Handy oder Laptop mit dem WLAN **`lhpc-XXXX`** (Schlüssel **`lorahampi`**).
-- **Desktop:** am Pi anmelden (**`lhpc`** / **`lhpc`**) und dein Netz beitreten (WLAN-Menü oder
-  Ethernet).
+- **Desktop:** der Pi meldet sich am Desktop selbst als **`lhpc`** an; das Passwort **`lhpc`** fragen
+  `sudo` und SSH ab. Tritt deinem Netz bei (WLAN-Menü oder Ethernet).
 
 Beides sind die öffentlichen Werksvoreinstellungen — geändert werden sie in
 [Schritt 8](#8--die-zwei-ausgelieferten-voreinstellungen-ändern). Mach das, bevor die Box irgendwo
@@ -161,6 +161,7 @@ WLAN ist, bleibt ihr AP aus.)
 | MeshCom-UI | `https://10.42.0.1:8444` — nur im AP | `https://127.0.0.1:8444` — nur auf dem Pi |
 | Meshtastic-UI | `https://10.42.0.1:8445` — nur im AP | `https://127.0.0.1:8445` — nur auf dem Pi |
 | Graywolf-APRS-UI | `https://10.42.0.1:8446` — nur im AP, **eigener Login** | `https://127.0.0.1:8446` — nur auf dem Pi |
+| MeshChat-UI (Reticulum) | `https://10.42.0.1:8447` — nur im AP | `https://127.0.0.1:8447` — nur auf dem Pi |
 | MeshCore-UIs | nicht bereitgestellt — per `lhpc webserver proxy` oder SSH-Tunnel erreichbar | ebenso |
 | SSH | an, in **jedem** Netz des Pi | an, in **jedem** Netz des Pi |
 | Firewall | an; die nativen Ports der Stacks sind zu | an; die nativen Ports der Stacks sind zu |
@@ -597,16 +598,10 @@ Position.
   serielles Gerät): **direkt** nutzbar, ganz ohne gpsd.
   **Apps → LoRaHAM Pi Control → Position (GPS)**: Quelle **nmea** + Gerätepfad (z. B.
   `/dev/ttyAMA0`) → Save. Der Direktmodus versorgt allerdings nur **einen** Stack.
-- **Kein GPS an Bord**: einen **USB-Empfänger** anstecken (z. B. einen u-blox-Stick) und über
-  **gpsd** laufen lassen — ein Systemdienst, den du einmal selbst einrichtest:
-
-  ```bash
-  sudo apt install -y gpsd gpsd-clients
-  sudo systemctl enable --now gpsd
-  cgps                                   # Kontrolle: Sätze laufen durch, draußen kommt ein Fix
-  ```
-  Debian erkennt USB-Empfänger automatisch (`USBAUTO`), und LHPCs Standardquelle (`auto`) findet
-  einen lokalen gpsd von allein — mehr ist nicht zu konfigurieren.
+- **Kein GPS an Bord**: einen **USB-Empfänger** anstecken (z. B. einen u-blox-Stick). Das Image
+  bringt **gpsd** schon laufend mit; er erkennt USB-Empfänger von selbst (`USBAUTO`), und LHPCs
+  Standardquelle (`auto`) findet ihn — nichts zu installieren oder einzurichten. Kontrolle unter
+  **Apps → LoRaHAM Pi Control → Position (GPS) → Monitor** oder mit `lhpc gps --monitor`.
 
 Jeder Stack, der eine Position nutzen kann, hat `use_gps` standardmäßig **an** — für eine normale
 Box ist hier also nichts zu tun. Zum Ab- oder Wiedereinschalten für einen Stack:

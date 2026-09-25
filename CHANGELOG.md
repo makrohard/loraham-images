@@ -2,6 +2,20 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## Unreleased
+
+- The seal removes RealVNC's server key, which the build left in `/root/.vnc/private.key` (the
+  same key on every card), and fails on any key-named file whose bytes are not the bytes its
+  package shipped.
+- The build's pip cache no longer ships: in the CI build this saved 164 MB on Desktop and 59 MB on
+  Lite.
+- Desktop: fio's job server, rpcbind and saned are disabled, and wayvnc listens on 127.0.0.1 only.
+- Debian's `nftables.service` is disabled on both variants, so a fresh box no longer reports
+  "foreign rules".
+- Desktop's firewall carries no access-point rules; only Lite, which makes an AP, gets them.
+- First boot no longer logs a failed `lhpc-nginx` start before the device certificate exists.
+- `ssh lhpc@<box> lhpc …` finds `lhpc` without a login shell.
+
 ## v0.9.2
 
 - Rebuild on `loraham-pi-control` **v0.9.2** (`71c0d39`): the MeshCom QEMU build now fetches the
@@ -40,6 +54,19 @@ Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](do
   that repo's changelog. Pins unchanged since v0.7.0, so the three binary artifacts published at
   cd7e1f3 still satisfy the manifest and no binary is rebuilt for this tag.
 
+## v0.7.0
+
+- Rebuild on `loraham-pi-control` **v0.7.0** (`cd7e1f3`) — LoRaHAM daemon **1.1.1**, MeshCom QEMU
+  overlay at 17 dBm, the firstboot clock gate (a Lite box commissions without a verified clock and
+  normalises its PKI when time arrives — proven by Gate A2 on this builder and from zero on hardware),
+  and build-input records for lhpc-shipped assets; see that repo's changelog. All three binary
+  artifacts (daemon, meshtastic, meshcom) are rebuilt at the tagged controller commit.
+
+## v0.6.2
+
+- Rebuild on `loraham-pi-control` **v0.6.2** (`e074424`): LoRaHAM daemon **1.0.0** and the KISS TNC
+  0.6.2; see that repo's changelog.
+
 ## v0.6.0
 
 - Rebuild on `loraham-pi-control` **v0.6.0** (`73a997b`) — GPS time source; see that repo's
@@ -54,19 +81,6 @@ Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](do
 ## v0.5.0
 
 - Rebuild on `loraham-pi-control` **v0.5.0** (`35ed070`); see that repo's changelog.
-
-## v0.7.0
-
-- Rebuild on `loraham-pi-control` **v0.7.0** (`cd7e1f3`) — LoRaHAM daemon **1.1.1**, MeshCom QEMU
-  overlay at 17 dBm, the firstboot clock gate (a Lite box commissions without a verified clock and
-  normalises its PKI when time arrives — proven by Gate A2 on this builder and from zero on hardware),
-  and build-input records for lhpc-shipped assets; see that repo's changelog. All three binary
-  artifacts (daemon, meshtastic, meshcom) are rebuilt at the tagged controller commit.
-
-## v0.6.2
-
-- Rebuild on `loraham-pi-control` **v0.6.2** (`e074424`): LoRaHAM daemon **1.0.0** and the KISS TNC
-  0.6.2; see that repo's changelog.
 
 ## v0.4.4
 

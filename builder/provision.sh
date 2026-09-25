@@ -102,6 +102,23 @@ done
 OP_UID="$(id -u "$OPERATOR_USER")"
 say "operator uid=$OP_UID"
 
+# `ssh lhpc@box lhpc status` must find lhpc. install.sh links it into ~/.local/bin, which only
+# ~/.profile puts on PATH — a login shell. For a command over ssh, bash reads ~/.bashrc instead
+# (Debian builds bash with SSH_SOURCE_BASHRC), and Debian's .bashrc returns at once when not
+# interactive — so the line goes ABOVE that return. Deliberately not a /usr/local/bin link: that
+# would put the operator's controller on root's PATH too, and `sudo lhpc` is not a supported way
+# to run it. Rewritten in place (cat >) so the file keeps its owner and mode.
+BRC="/home/$OPERATOR_USER/.bashrc"
+if [ -f "$BRC" ] && ! grep -q '^# lhpc: ~/.local/bin for non-interactive ssh' "$BRC"; then
+  # shellcheck disable=SC2016  # written literally: $PATH/$HOME expand in the operator's shell
+  { printf '%s\n' '# lhpc: ~/.local/bin for non-interactive ssh (ssh box lhpc status); must stay above the return below' \
+                  'case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) [ -d "$HOME/.local/bin" ] && PATH="$HOME/.local/bin:$PATH" ;; esac' \
+                  ''
+    cat "$BRC"; } > "$BRC.lhpc-new"
+  cat "$BRC.lhpc-new" > "$BRC"; rm -f "$BRC.lhpc-new"
+  say "operator .bashrc: .local/bin on PATH for non-interactive ssh"
+fi
+
 # Use the base's SUPPORTED first-user mechanism to mark the operator configured and
 # suppress the first-run wizard (userconf-pi userconfig.service / desktop piwiz), instead
 # of hardcoding a mask list. cancel-rename is what raspi-config itself calls.

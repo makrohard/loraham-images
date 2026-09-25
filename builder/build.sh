@@ -295,6 +295,26 @@ rm -f "$ROOT/etc/systemd/system/sysinit.target.wants/rpi-resize.service"
 # network-online.target readiness via NetworkManager-wait-online, so this is safe.
 ln -sf /dev/null "$ROOT/etc/systemd/system/systemd-networkd-wait-online.service"
 log "masked systemd-networkd-wait-online.service (unused on NM; only ever fails)"
+# Base services that listen on every interface as root and that nothing on this image uses:
+# fio's job server (fio.service, pulled in by agnostics — it runs arbitrary I/O jobs a remote
+# client sends, as root), rpcbind (NFS portmapper) and saned (network scanner sharing). Today only
+# the managed firewall keeps them off the LAN; a box whose firewall is off would expose them.
+# Disabled, not masked: an operator who wants one back runs `systemctl enable --now <unit>`, and a
+# package upgrade keeps them disabled (deb-systemd-helper re-enables only units that are enabled).
+for u in fio.service rpcbind.service rpcbind.socket saned.socket; do
+  [ -e "$ROOT/usr/lib/systemd/system/$u" ] || continue
+  systemctl --root="$ROOT" --quiet disable "$u" || die "could not disable $u"
+  log "disabled $u (listens on all interfaces as root; unused here)"
+done
+# wayvnc (Desktop) listens on :: — every interface. Bind it to loopback; VNC from another machine
+# goes through an SSH tunnel. /etc/wayvnc/config is a dpkg conffile: a future wayvnc that changes
+# it upstream asks once during `apt full-upgrade`, and keeping the local version keeps this.
+if [ -f "$ROOT/etc/wayvnc/config" ]; then
+  sed -i 's/^address=.*/address=127.0.0.1/' "$ROOT/etc/wayvnc/config"
+  grep -qx 'address=127.0.0.1' "$ROOT/etc/wayvnc/config" \
+    || die "wayvnc config has no address line to bind to loopback — base changed, review"
+  log "wayvnc bound to 127.0.0.1"
+fi
 group_end
 
 # ---- cleanup, then seal ----------------------------------------------------

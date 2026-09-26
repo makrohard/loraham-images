@@ -17,6 +17,8 @@ Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](do
 - `ssh lhpc@<box> lhpc …` finds `lhpc` without a login shell.
 - The README's licence section names Espressif QEMU (GPL-2.0), which ships inside the MeshCom
   artifact.
+- The MeshCom firmware is built from the temporary fork's `lhpc-speed` branch (upstream `dev` plus
+  two speed fixes offered upstream).
 
 ## v0.9.2
 

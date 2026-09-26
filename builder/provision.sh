@@ -186,6 +186,21 @@ say "bootstrap-deps.sh (real) --spi-mode soft-cs --operator-user $OPERATOR_USER 
 # shellcheck disable=SC2086
 bash "$BOOT" --spi-mode soft-cs --operator-user "$OPERATOR_USER" --no-swapfile $BOOTSTRAP_GUI $NETFLAG
 
+# ---- TEST ONLY (branch test/nspawn-fakehwclock, never merged) --------------
+# Emulates what LHPC 0.10.0's bootstrap-deps adds for F-B1 on this 0.9.2 controller: the
+# fake-hwclock package (bootstrap-deps.sh:104 TIME_PKGS) and its default file with FORCE=true
+# (bootstrap-deps.sh:423-433), so ci-assert's nspawn failed-units check meets
+# fake-hwclock-load.service exactly as the 0.10.0 image will.
+say "TEST ONLY: install fake-hwclock + /etc/default/fake-hwclock FORCE=true (as LHPC 0.10.0 does)"
+DEBIAN_FRONTEND=noninteractive apt-get install -y fake-hwclock
+install -D -m 0644 /dev/stdin /etc/default/fake-hwclock <<'LHPC_FAKE_HWCLOCK'
+# Installed by LoRaHAM Pi Control.
+# FORCE=true: `fake-hwclock load` only moves the clock FORWARD, never back.
+FORCE=true
+LHPC_FAKE_HWCLOCK
+command -v fake-hwclock >/dev/null || die "TEST ONLY: fake-hwclock not installed"
+systemctl is-enabled fake-hwclock-load.service || true
+
 # ---- 7. install.sh as the operator; assert resolved SHA --------------------
 say "install.sh (documented path) as $OPERATOR_USER"
 as_op bash "$CLONE/install.sh"

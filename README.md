@@ -657,6 +657,11 @@ below; each project remains under its own license (notice files ship inside the 
 - **[Reticulum MeshChat](https://github.com/liamcottle/reticulum-meshchat)** — © Liam Cottle · MIT · the browser client for the Reticulum stack, shipped with its
   prebuilt web bundle; source for the pinned version is at the link.
 - **[MeshCom firmware](https://github.com/icssw-org/MeshCom-Firmware)** — © ICSSW · MIT.
+- **[Espressif QEMU](https://github.com/espressif/qemu)** (`qemu-system-xtensa`, the emulator the
+  MeshCom firmware runs in) — © QEMU contributors and Espressif · GPL-2.0 · shipped built, inside
+  the prebuilt MeshCom artifact; source is the Espressif tag and commit pinned in
+  [meshcom-qemu-raspi](https://github.com/makrohard/meshcom-qemu-raspi)'s `scripts/build-qemu.sh`,
+  plus any patch that repository carries.
 - **[openHop](https://github.com/openhop-dev)** — © Lloyd Newton · MIT. The MeshCore
   implementation this image runs: **[openHop Core](https://github.com/openhop-dev/openhop_core)**,
   the node, built from source; **[openHop repeater](https://github.com/openhop-dev/openhop_repeater)**,

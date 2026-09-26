@@ -15,6 +15,8 @@ Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](do
 - Desktop's firewall carries no access-point rules; only Lite, which makes an AP, gets them.
 - First boot no longer logs a failed `lhpc-nginx` start before the device certificate exists.
 - `ssh lhpc@<box> lhpc …` finds `lhpc` without a login shell.
+- The README's licence section names Espressif QEMU (GPL-2.0), which ships inside the MeshCom
+  artifact.
 
 ## v0.9.2
 

@@ -7,8 +7,8 @@ Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](do
 - The seal removes RealVNC's server key, which the build left in `/root/.vnc/private.key` (the
   same key on every card), and fails on any key-named file whose bytes are not the bytes its
   package shipped.
-- The build's pip cache no longer ships: in the CI build this saved 164 MB on Desktop and 59 MB on
-  Lite.
+- The build's pip cache no longer ships: the CI builds came out about 160 MB smaller on Desktop and
+  60 MB smaller on Lite.
 - Desktop: fio's job server, rpcbind and saned are disabled, and wayvnc listens on 127.0.0.1 only.
 - Debian's `nftables.service` is disabled on both variants, so a fresh box no longer reports
   "foreign rules".

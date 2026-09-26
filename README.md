@@ -664,7 +664,10 @@ below; each project remains under its own license (notice files ship inside the 
   MeshCom firmware runs in) — © QEMU contributors and Espressif · GPL-2.0 · shipped built, inside
   the prebuilt MeshCom artifact; source is the Espressif tag and commit pinned in
   [meshcom-qemu-raspi](https://github.com/makrohard/meshcom-qemu-raspi)'s `scripts/build-qemu.sh`,
-  plus any patch that repository carries.
+  plus any patch that repository carries. The complete corresponding source of the QEMU this image
+  ships is published beside its MeshCom artifact in the
+  [lhpc-binaries `binaries` release](https://github.com/makrohard/lhpc-binaries/releases/tag/binaries)
+  as `meshcom-qemu-source-<sha256>.tar.zst`; the artifact's `share/doc/qemu/SOURCE` names the file.
 - **[openHop](https://github.com/openhop-dev)** — © Lloyd Newton · MIT. The MeshCore
   implementation this image runs: **[openHop Core](https://github.com/openhop-dev/openhop_core)**,
   the node, built from source; **[openHop repeater](https://github.com/openhop-dev/openhop_repeater)**,

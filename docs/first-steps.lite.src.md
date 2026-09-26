@@ -42,8 +42,9 @@ https://github.com/makrohard/loraham-images#install
   first boot; afterwards change them by hand (`sudo timedatectl set-timezone …`,
   `sudo raspi-config nonint do_wifi_country …`, `/etc/default/keyboard`).
   Wi-Fi country is a regulatory setting — set your own before operating the radio.
-  A Pi without a battery-backed clock (the Zero 2 W has none) has the wrong time after a power
-  cut until it reaches NTP or a GPS fix.
+  A Pi without a battery-backed clock (the Zero 2 W has none) restarts after a power cut from the
+  last time it saved (hourly and at shutdown) until it reaches NTP or a GPS fix; on a Zero 2 W the
+  dashboard's System card shows the time as `fake` until then.
 - **The stacks are already installed and built** — except the two parts that need a desktop
   (LoRaHAM Voice's GTK app and Reticulum's Sideband), which this headless image skips on purpose.
   None is running and nothing transmits just from booting; start what you want with

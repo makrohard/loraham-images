@@ -36,8 +36,8 @@ cannot lock you out.
   first boot; afterwards change them by hand (`sudo timedatectl set-timezone …`,
   `sudo raspi-config nonint do_wifi_country …`, `/etc/default/keyboard`).
   Wi-Fi country is a regulatory setting — set your own before operating the radio.
-  Without a battery-backed clock (a Pi 5 can take a battery for its built-in one), the time is
-  wrong after a power cut until the box reaches NTP or a GPS fix.
+  Without a battery for the Pi 5's clock, the box restarts after a power cut from the last time it
+  saved (hourly and at shutdown) until it reaches NTP or a GPS fix.
 - **Every stack is already installed and built** — none is running, and nothing transmits
   just from booting. Start what you want with `lhpc stack start <name>`.
 - Boot auto-restore is **on**: whatever is running when you reboot comes back by itself

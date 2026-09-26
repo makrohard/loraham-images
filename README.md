@@ -658,8 +658,7 @@ below; each project remains under its own license (notice files ship inside the 
   prebuilt web bundle; source for the pinned version is at the link.
 - **[MeshCom firmware](https://github.com/icssw-org/MeshCom-Firmware)** — © ICSSW · MIT · built
   from the temporary fork [makrohard/MeshCom-Firmware](https://github.com/makrohard/MeshCom-Firmware),
-  branch `lhpc-speed`: upstream `dev` plus two speed fixes offered upstream, until upstream carries
-  them.
+  branch `lhpc-speed`, which carries two speed fixes offered upstream until upstream has them.
 - **[Espressif QEMU](https://github.com/espressif/qemu)** (`qemu-system-xtensa`, the emulator the
   MeshCom firmware runs in) — © QEMU contributors and Espressif · GPL-2.0 · shipped built, inside
   the prebuilt MeshCom artifact; source is the Espressif tag and commit pinned in

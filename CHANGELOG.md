@@ -19,6 +19,8 @@ Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](do
   artifact.
 - The MeshCom firmware is built from the temporary fork's `lhpc-speed` branch (upstream `dev` plus
   two speed fixes offered upstream).
+- The build's failed-units check allows `fake-hwclock-load.service`: LHPC 0.10.0 installs
+  fake-hwclock, whose unit cannot set the clock inside the build container (no `CAP_SYS_TIME`).
 
 ## v0.9.2
 

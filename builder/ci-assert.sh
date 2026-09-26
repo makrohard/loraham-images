@@ -241,7 +241,7 @@ real_failed=""
 for u in $raw_failed; do
   case "$u" in
     apparmor.service|systemd-remount-fs.service|systemd-modules-load.service|\
-    systemd-firstboot.service|fake-hwclock.service|e2scrub_reap.service|\
+    systemd-firstboot.service|fake-hwclock.service|fake-hwclock-load.service|e2scrub_reap.service|\
     rpi-eeprom-update.service|raspi-firmware.service|raspi-config.service|\
     rpi-resize*.service|rpi-set-swap*.service|rpi-setup-loop*.service|\
     systemd-zram-setup@*.service|dev-zram*.swap|*var-swap*.service|\

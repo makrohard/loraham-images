@@ -2,7 +2,7 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
-## Unreleased
+## v0.10.0
 
 - The seal removes RealVNC's server key, which the build left in `/root/.vnc/private.key` (the
   same key on every card), and fails on any key-named file whose bytes are not the bytes its

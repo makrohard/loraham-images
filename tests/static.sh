@@ -105,6 +105,15 @@ _p="$(grep -n '^run_step device_pki' overlay/usr/local/sbin/lhpc-firstboot | cut
   || { echo "  hostname step (line ${_h:-?}) must run BEFORE device_pki (line ${_p:-?})"; exit 1; }
 echo "  ok: hostname ($_h) precedes device_pki ($_p)"
 
+echo "== firstboot: 'staying armed' is said once, by fail() =="
+# fail() appends "(staying armed)" to every message; a call site that says it too printed it twice.
+grep -q "^fail(){.*(staying armed)" overlay/usr/local/sbin/lhpc-firstboot \
+  || { echo "  fail() no longer appends '(staying armed)'"; exit 1; }
+if grep -nE '(^|[^a-z_])fail "[^"]*staying armed' overlay/usr/local/sbin/lhpc-firstboot; then
+  echo "  a fail call site repeats 'staying armed' (fail() already appends it)"; exit 1
+fi
+echo "  ok"
+
 bash tests/resume.sh || exit 1
 
 bash tests/recovery-ap.sh || exit 1

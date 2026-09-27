@@ -361,11 +361,11 @@ step_regdomain(){
   # Real hardware: the PERSISTENT set must SUCCEED (raspi-config is the RPi-supported mechanism that
   # writes the country so it survives reboots). A failure means an invalid country or broken setup —
   # leave the step unmarked so the next boot retries after the user corrects WIFI_COUNTRY.
-  command -v raspi-config >/dev/null 2>&1 || fail "raspi-config unavailable to persist WIFI_COUNTRY=$COUNTRY (staying armed)"
-  raspi-config nonint do_wifi_country "$COUNTRY" || fail "could not persist WIFI_COUNTRY=$COUNTRY — check the country code (staying armed)"
+  command -v raspi-config >/dev/null 2>&1 || fail "raspi-config unavailable to persist WIFI_COUNTRY=$COUNTRY"
+  raspi-config nonint do_wifi_country "$COUNTRY" || fail "could not persist WIFI_COUNTRY=$COUNTRY — check the country code"
   iw reg set "$COUNTRY" 2>/dev/null || true
   local got; got="$(iw reg get 2>/dev/null | awk '/^country/{print $2}' | tr -d ':' | head -1)"
-  [ "$got" = "$COUNTRY" ] || fail "regulatory domain is '${got:-unset}' at runtime, expected '$COUNTRY' (staying armed)"
+  [ "$got" = "$COUNTRY" ] || fail "regulatory domain is '${got:-unset}' at runtime, expected '$COUNTRY'"
 }
 
 step_ap(){
@@ -387,7 +387,7 @@ step_ap(){
   else
     # real hardware: wait for wlan0, then bring the AP up
     for _ in $(seq 1 30); do [ -d /sys/class/net/wlan0 ] && break; sleep 2; done
-    [ -d /sys/class/net/wlan0 ] || fail "no wlan0 — cannot form AP (staying armed)"
+    [ -d /sys/class/net/wlan0 ] || fail "no wlan0 — cannot form AP"
     nmcli connection up lhpc-ap || fail "AP failed to come up"
   fi
 }
@@ -587,7 +587,7 @@ step_swap(){
   part_sz="$(blockdev --getsize64 "$(findmnt -no SOURCE /)" 2>/dev/null || echo 0)"
   fs_sz="$(df -PB1 / | awk 'NR==2{print $2}')"
   if [ "$part_sz" -gt 0 ] && [ "$fs_sz" -lt $(( part_sz * 9 / 10 )) ]; then
-    fail "root filesystem not expanded yet (fs=$fs_sz part=$part_sz) — staying armed, not filling release-sized fs"
+    fail "root filesystem not expanded yet (fs=$fs_sz part=$part_sz) — not filling a release-sized fs"
   fi
   root_avail_kb="$(df -Pk / | awk 'NR==2{print $4}')"
   [ "$root_avail_kb" -ge $(( (mb + 256) * 1024 )) ] || fail "insufficient free space for swap (have ${root_avail_kb}k)"

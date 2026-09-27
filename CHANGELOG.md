@@ -2,6 +2,14 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.11.0
+
+- Rebuild on `loraham-pi-control` **v0.11.0**; see that repo's changelog.
+- First boot's error messages say "(staying armed)" once instead of twice.
+- README (EN+DE): how to change the MeshCore repeater's admin password (and that an over-the-air admin login
+  wrote it into the node's log from 0.2.8 up to 0.10.0), why Meshtastic peers stop reaching the box after a
+  re-flash, and `lhpc doctor`'s clock line to check before issuing the first client certificate.
+
 ## v0.10.0
 
 - The seal removes RealVNC's server key, which the build left in `/root/.vnc/private.key` (the

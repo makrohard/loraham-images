@@ -277,7 +277,7 @@ eine Quellinstallation (beides steht in der Tabelle und darunter).
 | Stack | Login | Wo es liegt |
 |---|---|---|
 | **Graywolf APRS** | `admin` | `state/graywolf/graywolf-admin.txt` — Graywolf legt es beim ersten Start selbst an |
-| **MeshCore**, Repeater-Dashboard | `admin` | `config/secrets/openhop_repeater_admin.txt` — entsteht, sobald **Mode** auf `chat+repeater` oder `repeater` steht; vorher sagt der Abschnitt Password genau das |
+| **MeshCore**, Repeater-Dashboard | `admin` | `config/secrets/openhop_repeater_admin.txt` — entsteht, sobald **Mode** auf `chat+repeater` oder `repeater` steht; vorher sagt der Abschnitt Password genau das. Ändern: Stack stoppen, Datei löschen, einen Repeater-Modus wieder starten — ein neues wird angelegt. Von 0.2.8 (der ersten Version mit den Repeater-Modi) bis 0.10.0 schrieb ein Admin-Login über Funk dieses Passwort (hex) ins Log des Knotens; wer sich unter 0.10.0 oder früher über Funk angemeldet hat, ändert es einmal |
 | **MeshCom** | HMAC-Passwort, kein Web-Login | `config/secrets/xr_pw` — nur über die HMAC-Aktionen des Stacks änderbar, nie durch Bearbeiten der Datei |
 
 <details><summary><em>CLI</em></summary>
@@ -318,7 +318,8 @@ sein, **bevor** du die Richtlinie umstellst, sonst sperrst du dich aus.
 #### 7.1 · Authentifizierung — Zertifikat ausstellen und installieren
 
 **Zuerst das Datum prüfen:** Zertifikate werden nach der Uhr der Box datiert, also muss `timedatectl`
-das heutige Datum zeigen; sonst stell es mit
+das heutige Datum zeigen (`lhpc doctor` zeigt das Urteil, das der Zertifikatsschritt verwendet:
+`clock: verified` oder `clock: NOT verified`); sonst stell es mit
 `sudo date -u -s 'YYYY-MM-DD HH:MM' && sudo fake-hwclock save`. Solange dort
 `System clock synchronized: no` steht (noch keine Netzwerkzeit, kein GPS, wie am eigenen AP einer
 Lite-Box), setz beim Ausstellen des Zertifikats das Häkchen **Accept unverified clock**.
@@ -639,6 +640,10 @@ bis zum ersten Fix; „reachable but no fix" ist eine Warnung, kein Fehler.
 
 - **Kein `lhpc-XXXX`-WLAN nach ~2 Minuten** — Karte neu stecken/neu flashen, Netzteil prüfen.
   Stattdessen ein **`lhpc-recovery-XXXX`**-Netz: siehe Schritt 3.
+- **Meshtastic-Gegenstellen erreichen die Box nach dem Neu-Flashen nicht mehr** — die frische Karte
+  gibt dem Knoten einen neuen Schlüssel unter derselben Knotennummer, die Gegenstellen behalten den
+  alten: den Knoten auf jeder Gegenstelle einmal entfernen; sie lernt den neuen Schlüssel aus der
+  nächsten Node-Info der Box.
 - **Web-Konsole geht nicht auf** — *Lite:* Du musst im AP sein, und die Adresse ist
   `https://10.42.0.1:8443`. *Desktop:* Sie ist nur lokal — `https://127.0.0.1:8443` **auf dem
   Pi** öffnen. Die Warnung zum selbstsignierten Zertifikat bestätigen.

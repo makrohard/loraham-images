@@ -262,7 +262,7 @@ source install (both noted in the table and below).
 | Stack | Login | Where it is stored |
 |---|---|---|
 | **Graywolf APRS** | `admin` | `state/graywolf/graywolf-admin.txt` — Graywolf itself creates it on first start |
-| **MeshCore** repeater dashboard | `admin` | `config/secrets/openhop_repeater_admin.txt` — created once **Mode** is `chat+repeater` or `repeater`; until then the Password section says so |
+| **MeshCore** repeater dashboard | `admin` | `config/secrets/openhop_repeater_admin.txt` — created once **Mode** is `chat+repeater` or `repeater`; until then the Password section says so. To change it: stop the stack, delete the file, start a repeater mode again — a new one is minted. From 0.2.8 (the first release with the repeater modes) up to 0.10.0 an admin login over the air wrote this password (in hex) into the node's log; if you logged in over the air on 0.10.0 or earlier, change it once |
 | **MeshCom** | HMAC password, not a web login | `config/secrets/xr_pw` — changed only through the stack's HMAC actions, never by editing the file |
 
 <details><summary><em>CLI</em></summary>
@@ -301,7 +301,8 @@ your machine **before** you switch the policy, or you lock yourself out.
 #### 7.1 · Authentication — issue and install your certificate
 
 **Check the date first:** certificates are dated from the box's clock, so `timedatectl` must show
-today's date; if it does not, set it with
+today's date (`lhpc doctor` shows the verdict the certificate step uses: `clock: verified` or
+`clock: NOT verified`); if it does not, set it with
 `sudo date -u -s 'YYYY-MM-DD HH:MM' && sudo fake-hwclock save`. While it says
 `System clock synchronized: no` (no network time or GPS yet, as on a Lite box's own AP), tick
 **Accept unverified clock** when you issue the certificate.
@@ -609,6 +610,9 @@ fix" is a warning, not a failure.
 
 - **No `lhpc-XXXX` Wi-Fi after ~2 min** — re-seat/re-flash the card; check power. A
   **`lhpc-recovery-XXXX`** network instead: see step 3.
+- **Meshtastic peers no longer reach the box after a re-flash** — the fresh card gives the node a
+  new key under the same node number, and peers keep the old one: remove the node once on each peer;
+  it relearns the new key from the box's next node-info.
 - **Web GUI won't open** — *Lite:* you must be joined to the AP, and use `https://10.42.0.1:8443`.
   *Desktop:* it is local-only, so open `https://127.0.0.1:8443` **on the Pi**. Accept the
   self-signed warning.

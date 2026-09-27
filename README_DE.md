@@ -317,6 +317,12 @@ sein, **bevor** du die Richtlinie umstellst, sonst sperrst du dich aus.
 
 #### 7.1 · Authentifizierung — Zertifikat ausstellen und installieren
 
+**Zuerst das Datum prüfen:** Zertifikate werden nach der Uhr der Box datiert, also muss `timedatectl`
+das heutige Datum zeigen; sonst stell es mit
+`sudo date -u -s 'YYYY-MM-DD HH:MM' && sudo fake-hwclock save`. Solange dort
+`System clock synchronized: no` steht (noch keine Netzwerkzeit, kein GPS, wie am eigenen AP einer
+Lite-Box), setz beim Ausstellen des Zertifikats das Häkchen **Accept unverified clock**.
+
 - **Apps → LoRaHAM Pi Control → Webserver (HTTPS / mTLS) → Certificates → Issue client cert**<br>
   Ein Label vergeben, etwa `lhpc-laptop`, und auf Issue drücken. **Die Einmal-Passphrase jetzt
   kopieren** — sie wird genau einmal angezeigt, ist danach nicht wiederherstellbar, und du brauchst

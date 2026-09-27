@@ -300,6 +300,12 @@ your machine **before** you switch the policy, or you lock yourself out.
 
 #### 7.1 · Authentication — issue and install your certificate
 
+**Check the date first:** certificates are dated from the box's clock, so `timedatectl` must show
+today's date; if it does not, set it with
+`sudo date -u -s 'YYYY-MM-DD HH:MM' && sudo fake-hwclock save`. While it says
+`System clock synchronized: no` (no network time or GPS yet, as on a Lite box's own AP), tick
+**Accept unverified clock** when you issue the certificate.
+
 - **Apps → LoRaHAM Pi Control → Webserver (HTTPS / mTLS) → Certificates → Issue client cert**<br>
   Give it a label such as `lhpc-laptop` and press Issue. **Copy the one-time passphrase now** — it
   is shown exactly once, it is never recoverable, and you need it when you import the `.p12`. Lost

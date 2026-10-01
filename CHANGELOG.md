@@ -2,6 +2,10 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.11.10
+
+- Rebuild on `loraham-pi-control` **v0.11.10** (`e5187f7`); see that repo's changelog.
+
 ## v0.11.9
 
 - Rebuild on `loraham-pi-control` **v0.11.9** (`c60028f`); see that repo's changelog.

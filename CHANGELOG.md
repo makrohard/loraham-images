@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.11.11
+
+- Rebuild on `loraham-pi-control` **v0.11.11** (`35923b8`), the full code-review bundle: build steps end on a stall,
+  not on the clock; a firewall re-apply notice after an update that changes the helper; recovery and PKI fixes. See
+  that repo's changelog.
+
 ## v0.11.10
 
 - Rebuild on `loraham-pi-control` **v0.11.10** (`e5187f7`); see that repo's changelog.

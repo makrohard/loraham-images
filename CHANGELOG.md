@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.12.0
+
+- Rebuild on `loraham-pi-control` **v0.12.0** (`83d6367`), the consolidation release: updates rebuild what they
+  change and say what is still needed; clearer refusals with their remedy; the shared-SPI warning for daemon 433 +
+  Meshtastic 868. See that repo's changelog.
+
 ## v0.11.11
 
 - Rebuild on `loraham-pi-control` **v0.11.11** (`35923b8`), the full code-review bundle: build steps end on a stall,

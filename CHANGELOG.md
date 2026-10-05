@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.12.2
+
+- Rebuild on `loraham-pi-control` **v0.12.2** (`3f2a8c2`): fixes from the live matrix (band conflicts, the
+  console's shared-SPI warning, a console Stop survives a reboot) and the firewall no longer flags the access
+  point's NetworkManager table. See that repo's changelog.
+
 ## v0.12.1
 
 - Rebuild on `loraham-pi-control` **v0.12.1** (`744c069`): boot restore accepts the next release's units;

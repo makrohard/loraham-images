@@ -2,6 +2,11 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.12.3
+
+- Rebuild on `loraham-pi-control` **v0.12.3** (`d5fe3a0`): the console's update says "Already up to date" when
+  nothing is new, and the dependency note names what a headless box can skip. See that repo's changelog.
+
 ## v0.12.2
 
 - Rebuild on `loraham-pi-control` **v0.12.2** (`3f2a8c2`): fixes from the live matrix (band conflicts, the

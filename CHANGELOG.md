@@ -2,6 +2,11 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.12.1
+
+- Rebuild on `loraham-pi-control` **v0.12.1** (`744c069`): boot restore accepts the next release's units;
+  the MeshCore CLI's dependencies move to meshcore 2.3.15. See that repo's changelog.
+
 ## v0.12.0
 
 - Rebuild on `loraham-pi-control` **v0.12.0** (`83d6367`), the consolidation release: updates rebuild what they

@@ -2,6 +2,11 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.12.9
+
+- Rebuild on `loraham-pi-control` **v0.12.9** (`eb9673a`): `lhpc update <stack>` also updates the stack's
+  installed optional components. See that repo's changelog.
+
 ## v0.12.8
 
 - Rebuild on `loraham-pi-control` **v0.12.8** (`1f6aaf9`): the controller waits briefly for a just-started

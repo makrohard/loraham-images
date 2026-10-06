@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.12.8
+
+- Rebuild on `loraham-pi-control` **v0.12.8** (`1f6aaf9`): the controller waits briefly for a just-started
+  component's process identity, and the release check no longer reads an exited program as stalled. See that
+  repo's changelog.
+
 ## v0.12.7
 
 - Rebuild on `loraham-pi-control` **v0.12.7** (`482da2f`); see that repo's changelog.

@@ -2,6 +2,11 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.12.5
+
+- Rebuild on `loraham-pi-control` **v0.12.5** (`a9f23a0`): test-lab and test fixes, no change on the box. See
+  that repo's changelog.
+
 ## v0.12.4
 
 - Rebuild on `loraham-pi-control` **v0.12.4** (`2825823`): after a binary install the console's task banner

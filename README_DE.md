@@ -656,6 +656,9 @@ bis zum ersten Fix; „reachable but no fix" ist eine Warnung, kein Fehler.
   Neu verbinden, dann Prefer setzen.
 - **`lhpc-XXXX.local` löst nicht auf?** Häufig unter Android, das `.local` gar nicht auflöst — nimm
   die Adresse, die dein Router der Box gibt, oder geh von einem Rechner aus ran.
+- **Was geschah vor dem letzten Neustart?** Das Systemjournal bleibt über Neustarts erhalten (höchstens
+  128 MiB): `sudo journalctl -b -1` zeigt den vorigen Start, `sudo journalctl --list-boots` alle
+  gespeicherten (ohne `sudo` sieht das Konto `lhpc` nur sein eigenes Benutzerjournal).
 </details>
 
 ## Standardwerte

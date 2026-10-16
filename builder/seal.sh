@@ -47,6 +47,16 @@ fi
 rm -f "$ROOT/var/lib/dbus/machine-id"
 rm -f "$ROOT"/etc/ssh/ssh_host_* 2>/dev/null || true
 
+# --- state of the build's own boot (provisioning runs the rootfs under systemd-nspawn --boot) ---
+# The persistent journal (overlay 90-lhpc-persistent.conf) would keep the build boot's journal under
+# its machine-id; build.sh only truncates /var/log files, which leaves 0-byte .journal files. The
+# directory itself stays as shipped (owner, mode, ACL): the first boot fills it under its own id.
+[ -d "$ROOT/var/log/journal" ] && find "$ROOT/var/log/journal" -mindepth 1 -delete
+# Timer stamps from the build boot: a Persistent= timer would catch up its "missed" runs (apt,
+# man-db) during a box's first boot. The CI runner's clock drift is not a Pi's. RealVNC's update id
+# (Desktop) is per install, so it must not be the same on every card; RealVNC writes a new one.
+rm -f "$ROOT"/var/lib/systemd/timers/stamp-* "$ROOT/var/lib/chrony/chrony.drift" "$ROOT/etc/vnc/updateid"
+
 # --- base-shipped private keys: inspect + regenerate-per-device --------------
 # ssl-cert snakeoil key is generated per-machine at install; strip it (regenerated on demand).
 rm -f "$ROOT"/etc/ssl/private/ssl-cert-snakeoil.key "$ROOT"/etc/ssl/certs/ssl-cert-snakeoil.pem 2>/dev/null || true
@@ -131,6 +141,14 @@ for _c in "$ROOT/home/$OP/.cache/pip" "$ROOT/root/.cache/pip"; do
   [ ! -e "$_c" ] || die "seal failed: pip cache present at ${_c#"$ROOT"} — dead weight under the 2 GiB cap"
 done
 log "assert OK: no pip cache in the image"
+
+# (d3) nothing of the build boot's state ships: no journal, no timer stamp, no clock drift, no VNC id.
+[ -z "$(find "$ROOT/var/log/journal" -mindepth 1 -print -quit 2>/dev/null)" ] \
+  || die "seal failed: /var/log/journal is not empty — the build boot's journal would ship"
+for _s in "$ROOT"/var/lib/systemd/timers/stamp-* "$ROOT/var/lib/chrony/chrony.drift" "$ROOT/etc/vnc/updateid"; do
+  [ ! -e "$_s" ] || die "seal failed: build-boot state present at ${_s#"$ROOT"}"
+done
+log "assert OK: no build-boot journal, timer stamps, chrony drift or VNC update id"
 
 # (e) operator account hash corresponds to the documented onboarding password.
 # Trixie hashes are yescrypt ($y$); recompute via libcrypt (crypt(3)), which supports it.

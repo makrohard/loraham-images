@@ -118,6 +118,19 @@ bash tests/resume.sh || exit 1
 
 bash tests/recovery-ap.sh || exit 1
 
+echo "== journald: the persistent, capped journal drop-in =="
+# The image keeps the system journal across reboots (Raspberry Pi OS's 40-rpi-volatile-storage.conf
+# makes it volatile; a field test lost its whole day to that). The drop-in must sort after the
+# vendor's 40- file to win, and its settings are the contract: persistent, 128M in all, 16M files.
+_j=overlay/etc/systemd/journald.conf.d/90-lhpc-persistent.conf
+[ -f "$_j" ] || { echo "  $_j is MISSING"; exit 1; }
+[[ "$(basename "$_j")" > "40-rpi-volatile-storage.conf" ]] \
+  || { echo "  $_j does not sort after the vendor's 40-rpi-volatile-storage.conf"; exit 1; }
+_want=$'[Journal]\nStorage=persistent\nSystemMaxUse=128M\nSystemMaxFileSize=16M'
+_got="$(grep -vE '^[[:space:]]*(#|$)' "$_j")"
+[ "$_got" = "$_want" ] || { echo "  $_j differs from the contract (want, then got):"; printf '%s\n--\n%s\n' "$_want" "$_got" | sed 's/^/    /'; exit 1; }
+echo "  ok: $_j"
+
 echo "== real lhpc-config.txt parser test (valid / misspelled / invalid) =="
 bash tests/parser.sh | sed 's/^/  /'
 

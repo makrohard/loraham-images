@@ -177,6 +177,15 @@ else
   [ -f /var/lib/lhpc/.firstboot-done ] || fail "firstboot-done missing on cold reboot"
   systemctl is-active lhpc-firstboot.service 2>/dev/null | grep -qx active && fail "firstboot re-ran on cold boot"
   ok "firstboot stays disabled"
+  # The persistent journal (overlay 90-lhpc-persistent.conf): the first gate boot is still readable
+  # after the cold reboot. -D reads every machine-id directory (nspawn may give each boot of the copy
+  # another id; `--list-boots` does not take --merge) and skips a truncated file instead of failing.
+  # Only boot rows count (index, then the 32-hex boot id): a warning naming a machine-id directory
+  # must not. journalctl's own output is kept for the failure message.
+  bl="$(journalctl -D /var/log/journal --list-boots --no-pager 2>&1 || true)"
+  nb="$(printf '%s\n' "$bl" | grep -cE '^ *-?[0-9]+ [0-9a-f]{32} ' || true)"
+  [ "${nb:-0}" -ge 2 ] || fail "the journal lists ${nb:-0} boot(s) after the cold reboot (persistent: want >= 2): $(printf '%s' "$bl" | tail -3 | tr '\n' ' ')"
+  ok "journal persistent: $nb boots listed"
   if [ "${VARIANT:-lite}" = "lite" ]; then
     ac="$(nmcli -g connection.autoconnect connection show lhpc-ap 2>/dev/null || echo '')"
     [ "$ac" = "yes" ] || fail "AP profile autoconnect != yes (got '$ac')"

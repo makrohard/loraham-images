@@ -19,6 +19,11 @@ A checklist for the repo owner. What CI enforces vs. what is manual, plus the ho
   GUI loads, recovery sshd on all interfaces wherever `SSH_ENABLE=on` (both variants today),
   stack web-UI proxies configured per `PROXY_STACKS` (Lite only; the Desktop loopback proxies are not asserted), daemon start refused, fresh device PKI,
   swap fixture, firstboot idempotent — plus the **cold-reboot** gate + host-netns-unchanged
+- seal: no build-boot state ships: `/var/log/journal` empty (the persistent journal would keep the
+  build boot's), no `/var/lib/systemd/timers/stamp-*`, no `chrony.drift`, no `/etc/vnc/updateid`
+- static gate: `overlay/etc/systemd/journald.conf.d/90-lhpc-persistent.conf` sorts after the vendor's
+  `40-rpi-volatile-storage.conf` and holds exactly `Storage=persistent`, `SystemMaxUse=128M`,
+  `SystemMaxFileSize=16M`; Gate A2's cold boot still lists the first boot's journal (≥ 2 boots)
 - seal also asserts: all four overlay programs executable, and `lhpc-recovery` +
   `lhpc-recovery-ap` armed and requiring nothing (a failed expansion must still leave a way in)
 - static gate (`tests/static.sh`, before any build): shellcheck + `bash -n`; the real

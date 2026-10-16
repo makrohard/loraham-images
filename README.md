@@ -624,6 +624,9 @@ fix" is a warning, not a failure.
   (step 10): without it the box does not re-join a Wi-Fi by itself. Re-join, then Prefer it.
 - **`lhpc-XXXX.local` does not resolve?** Common on Android, which does not do `.local` at all —
   use the address your router gives the box, or reach it from a computer.
+- **What happened before the last reboot?** The system journal is kept across reboots (capped at
+  128 MiB): `sudo journalctl -b -1` shows the previous boot, `sudo journalctl --list-boots` all that are
+  kept (without `sudo` the `lhpc` account sees only its own user journal).
 </details>
 
 ## Defaults

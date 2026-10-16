@@ -2,6 +2,11 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## Unreleased
+
+- The system journal is kept across reboots, capped at 128 MiB (`sudo journalctl -b -1` shows the previous boot); no
+  journal, timer stamp, clock drift or VNC id from the image build ships.
+
 ## v0.12.9
 
 - Rebuild on `loraham-pi-control` **v0.12.9** (`eb9673a`): `lhpc update <stack>` also updates the stack's

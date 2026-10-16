@@ -2,8 +2,10 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
-## Unreleased
+## v0.12.10
 
+- Rebuild on `loraham-pi-control` **v0.12.10** (`84f1b46`): MeshCom runs the stock firmware under QEMU, and kernel
+  chip selects serialise the SPI bus. See that repo's changelog.
 - The system journal is kept across reboots, capped at 128 MiB (`sudo journalctl -b -1` shows the previous boot); no
   journal, timer stamp, clock drift or VNC id from the image build ships.
 

@@ -2,6 +2,11 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## Unreleased
+
+- The pre-build binary index check reads the index the manifest names (`index-v3.json`, schema 3, since
+  `loraham-pi-control` 0.12.11); it refused the v0.12.11 build.
+
 ## v0.12.11
 
 - Rebuild on `loraham-pi-control` **v0.12.11** (`f580e4a`); see that repo's changelog.

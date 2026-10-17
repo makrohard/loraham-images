@@ -1,0 +1,56 @@
+# The binary stacks of loraham-pi-control v0.12.11 (f580e4a1) lhpc/data/manifest.example.toml:
+# each stack's [stack.binary] index_url and covers, and every component's pin_commit. Nothing else.
+
+[[stack]]
+id = "daemon"
+[stack.binary]
+index_url = "https://github.com/makrohard/lhpc-binaries/releases/download/binaries/index-v3.json"
+covers = ["loraham-daemon", "radiolib"]
+[[stack.component]]
+id = "loraham-daemon"
+[stack.component.source]
+pin_commit = "74763114a04bcf67ad44db8e352a7aaf9ae3fc07"
+[[stack.component]]
+id = "radiolib"
+[stack.component.source]
+pin_commit = "187ef24791c3d844939b2be13a68bd890bd04e4c"
+
+[[stack]]
+id = "meshtastic"
+[stack.binary]
+index_url = "https://github.com/makrohard/lhpc-binaries/releases/download/binaries/index-v3.json"
+covers = ["meshtastic"]
+[[stack.component]]
+id = "meshtastic-gps"
+[[stack.component]]
+id = "meshtastic"
+[stack.component.source]
+pin_commit = "54e0d8d0ab2ff56b3a9ce967e53f79e49af560fb"
+[[stack.component]]
+id = "meshtastic-web"
+[[stack.component]]
+id = "meshtastic-cli"
+
+[[stack]]
+id = "meshcom"
+[stack.binary]
+index_url = "https://github.com/makrohard/lhpc-binaries/releases/download/binaries/index-v3.json"
+covers = ["meshcom-qemu", "meshcom-bridge", "meshcom-firmware"]
+[[stack.component]]
+id = "meshcom-bridge"
+[stack.component.source]
+pin_commit = "7c86c96aa5ae9c1359aff85c761028910be5cd91"
+[[stack.component]]
+id = "meshcom-gps"
+[[stack.component]]
+id = "meshcom-gps-relay"
+[stack.component.source]
+pin_commit = "4369e529f0d56725100c93c22afc2dc132db6c49"
+[[stack.component]]
+id = "meshcom-qemu"
+[stack.component.source]
+pin_commit = "4369e529f0d56725100c93c22afc2dc132db6c49"
+[[stack.component]]
+id = "meshcom-firmware"
+[stack.component.source]
+pin_commit = "f2b3a3496a76f327abec8b7228bce436cafe9606"

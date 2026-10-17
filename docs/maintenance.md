@@ -221,9 +221,10 @@ are installed explicitly root-owned, so they were never affected.
 - **`precheck` refuses a binary index that cannot satisfy the manifest**, before the build starts
   (`builder/check-binary-index.py`, run offline against fixtures by `tests/static.sh`). It is driven
   FROM the manifest on `loraham-pi-control` `main` — the same source the build resolves — so a
-  missing binary stack or a missing covered component fails too, not only a drifted sha; the index
-  schema must be exactly 2. The failure costs seconds at the top of the run instead of an hour
-  into provisioning.
+  missing binary stack or a missing covered component fails too, not only a drifted sha. It reads
+  the index the manifest's `[stack.binary] index_url` names (index.json when none is named), schema
+  2 or 3; in schema 3 any of a stack's listed entries may match. The failure costs seconds at the
+  top of the run instead of an hour into provisioning.
 
 ## Base image roll
 - `BASE_URL`/`BASE_SHA256` are RESOLVED each run (latest official build) and verified together; a

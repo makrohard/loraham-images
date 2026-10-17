@@ -1,0 +1,141 @@
+{
+  "schema": 2,
+  "stacks": {
+    "daemon": {
+      "builder_commit": "9a8db56f96d69239080b103ea30580ab5b37a964",
+      "built_from": "74763114a04bcf67ad44db8e352a7aaf9ae3fc07",
+      "components": {
+        "loraham-daemon": "74763114a04bcf67ad44db8e352a7aaf9ae3fc07",
+        "radiolib": "187ef24791c3d844939b2be13a68bd890bd04e4c"
+      },
+      "container_digest": "debian@sha256:34cd9e9fd437c0a095ec39cb2e73422c9f30821b0d0848ed74fd0d43bae4d958",
+      "extract_to": "runtime-root",
+      "filename": "daemon-da2b0a17cedf340154f4138e6247d7cdd58a964859b9d77e38814608c75d6400.tar.zst",
+      "lhpc_commit": "1af868e2b14504bb32974c8a53a7073355501fd5",
+      "os": "trixie",
+      "runtime_deps": [
+        "libc6",
+        "libgcc-s1",
+        "liblgpio1",
+        "libstdc++6"
+      ],
+      "sha256": "da2b0a17cedf340154f4138e6247d7cdd58a964859b9d77e38814608c75d6400",
+      "size": 1160750,
+      "smoke": {
+        "mode": "mandatory",
+        "result": "passed"
+      },
+      "target": "aarch64-trixie",
+      "url": "https://github.com/makrohard/lhpc-binaries/releases/download/binaries/daemon-da2b0a17cedf340154f4138e6247d7cdd58a964859b9d77e38814608c75d6400.tar.zst"
+    },
+    "meshcom": {
+      "builder_commit": "9a8db56f96d69239080b103ea30580ab5b37a964",
+      "built_from": "8692acd6952638c0f711508e2c7cd12100d4e128",
+      "components": {
+        "meshcom-bridge": "7c86c96aa5ae9c1359aff85c761028910be5cd91",
+        "meshcom-firmware": "f2b3a3496a76f327abec8b7228bce436cafe9606",
+        "meshcom-gps-relay": "8692acd6952638c0f711508e2c7cd12100d4e128",
+        "meshcom-qemu": "8692acd6952638c0f711508e2c7cd12100d4e128"
+      },
+      "container_digest": "debian@sha256:34cd9e9fd437c0a095ec39cb2e73422c9f30821b0d0848ed74fd0d43bae4d958",
+      "extract_to": "runtime-root",
+      "filename": "meshcom-fde10d97e6f1430ef3eb27a2fa8db9ae05389568560dbd6af5fc49218a15eb88.tar.zst",
+      "lhpc_commit": "1af868e2b14504bb32974c8a53a7073355501fd5",
+      "os": "trixie",
+      "runtime_deps": [
+        "libatomic1",
+        "libblkid1",
+        "libc6",
+        "libffi8",
+        "libgcc-s1",
+        "libgcrypt20",
+        "libglib2.0-0t64",
+        "libgpg-error0",
+        "libmount1",
+        "libpcre2-8-0",
+        "libpixman-1-0",
+        "libselinux1",
+        "libslirp0",
+        "libssl3t64",
+        "libstdc++6",
+        "libzstd1",
+        "zlib1g"
+      ],
+      "sha256": "fde10d97e6f1430ef3eb27a2fa8db9ae05389568560dbd6af5fc49218a15eb88",
+      "size": 13439828,
+      "smoke": {
+        "mode": "mandatory",
+        "result": "passed"
+      },
+      "target": "aarch64-trixie",
+      "url": "https://github.com/makrohard/lhpc-binaries/releases/download/binaries/meshcom-fde10d97e6f1430ef3eb27a2fa8db9ae05389568560dbd6af5fc49218a15eb88.tar.zst"
+    },
+    "meshtastic": {
+      "builder_commit": "2126ac41b2b3beceb8cac0bcc1c3eed27576fa4f",
+      "built_from": "54e0d8d0ab2ff56b3a9ce967e53f79e49af560fb",
+      "components": {
+        "meshtastic": "54e0d8d0ab2ff56b3a9ce967e53f79e49af560fb"
+      },
+      "container_digest": "debian@sha256:34cd9e9fd437c0a095ec39cb2e73422c9f30821b0d0848ed74fd0d43bae4d958",
+      "extract_to": "runtime-root",
+      "filename": "meshtastic-5a89d733288e078dc765aaa4b3e8fe772c4ebf38fd3e2341151c93c91e655756.tar.zst",
+      "lhpc_commit": "cd7e1f3b6a2a9f1ce587657a6b23f5dce62a5d10",
+      "os": "trixie",
+      "runtime_deps": [
+        "libbrotli1",
+        "libc6",
+        "libcap2",
+        "libcom-err2",
+        "libcurl3t64-gnutls",
+        "libffi8",
+        "libgcc-s1",
+        "libgmp10",
+        "libgnutls30t64",
+        "libgpiod3",
+        "libgssapi-krb5-2",
+        "libhogweed6t64",
+        "libi2c0",
+        "libidn2-0",
+        "libjansson4",
+        "libk5crypto3",
+        "libkeyutils1",
+        "libkrb5-3",
+        "libkrb5support0",
+        "libldap2",
+        "libmicrohttpd12t64",
+        "libnettle8t64",
+        "libnghttp2-14",
+        "libnghttp3-9",
+        "libngtcp2-16",
+        "libngtcp2-crypto-gnutls8",
+        "liborcania2.3",
+        "libp11-kit0",
+        "libpsl5t64",
+        "librtmp1",
+        "libsasl2-2",
+        "libssh2-1t64",
+        "libssl3t64",
+        "libstdc++6",
+        "libsystemd0",
+        "libtasn1-6",
+        "libudev1",
+        "libulfius2.7t64",
+        "libunistring5",
+        "libusb-1.0-0",
+        "libuv1t64",
+        "libyaml-cpp0.8",
+        "libyder2.0t64",
+        "libzstd1",
+        "zlib1g"
+      ],
+      "sha256": "5a89d733288e078dc765aaa4b3e8fe772c4ebf38fd3e2341151c93c91e655756",
+      "size": 53198903,
+      "smoke": {
+        "mode": "mandatory",
+        "result": "passed"
+      },
+      "target": "aarch64-trixie",
+      "url": "https://github.com/makrohard/lhpc-binaries/releases/download/binaries/meshtastic-5a89d733288e078dc765aaa4b3e8fe772c4ebf38fd3e2341151c93c91e655756.tar.zst"
+    }
+  }
+}

@@ -2,6 +2,10 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.12.11
+
+- Rebuild on `loraham-pi-control` **v0.12.11** (`f580e4a`); see that repo's changelog.
+
 ## v0.12.10
 
 - Rebuild on `loraham-pi-control` **v0.12.10** (`84f1b46`): MeshCom runs the stock firmware under QEMU, and kernel

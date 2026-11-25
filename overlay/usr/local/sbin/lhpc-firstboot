@@ -442,31 +442,31 @@ step_expose(){
       --confirm-phrase enable-remote-danger || fail "webserver expose failed"
 }
 step_stackweb(){
-  # Proxy each eligible stack's web UI on the AP CIDR with NO authentication — the same
-  # posture step_expose gives the console. Config only; step_console's single `apply` renders
-  # all of it in one nginx reload. MeshCom is the point: QEMU forwards its UI to 127.0.0.1,
-  # so without a proxy it is unreachable from anywhere but the Pi itself.
+  # A fresh image proxies NO stack page. Since LHPC 0.14.0 a web-UI page is per radio
+  # (`<stack>@<rid>`), and the sealed image ships no radio list, so there is no page to proxy
+  # yet: pages are set per radio in the console after Hardware setup. PROXY_STACKS (empty by
+  # default) names page ids for a build that does ship a radio list; each is proxied on its
+  # own LHPC page port. Config only; step_console's single `apply` renders it.
+  if [ -z "${PROXY_STACKS:-}" ]; then
+    say "no stack page proxied by default; pages are set per radio in the console after Hardware setup"
+    return 0
+  fi
   [ "${PROXY_MODE:-none}" != "none" ] || { say "PROXY_MODE=none; no stack proxies"; return 0; }
-  [ -n "${PROXY_STACKS:-}" ] || { say "PROXY_STACKS empty; nothing to proxy"; return 0; }
-  local s i=0 port
+  local s
   for s in ${PROXY_STACKS//,/ }; do
-    port=$(( ${CONSOLE_PORT:-8443} + 1 + i )); i=$(( i + 1 ))
-    # Fail-closed: a stack that cannot be proxied (no HTTP upstream) is a config error, not
-    # something to skip quietly — lhpc says "has no web UI to proxy" and we stop.
+    # Fail-closed: a page that cannot be proxied (no such page, no HTTP upstream) is a config
+    # error, not something to skip quietly.
     case "$PROXY_MODE" in
       ap)
         # Reachable on the AP, no authentication — the posture step_expose gives the console.
-        lhpc webserver proxy "$s" --mode lan --port "$port" --cidr "$AP_CIDR" \
+        lhpc webserver proxy "$s" --mode lan --cidr "$AP_CIDR" \
             --access-mode no-auth --confirm-phrase enable-remote-danger \
-          || fail "webserver proxy $s on $port failed"
-        say "proxied $s on $port (AP $AP_CIDR, no-auth)" ;;
+          || fail "webserver proxy $s failed"
+        say "proxied $s (AP $AP_CIDR, no-auth)" ;;
       local)
-        # Loopback ONLY: the stacks are not exposed anywhere. This exists so the dashboard can
-        # link them at all — MeshCom's UI is behind QEMU's 127.0.0.1 hostfwd, and lhpc refuses
-        # to render a dead remote link for it. Default access-mode, so no elevation is needed.
-        lhpc webserver proxy "$s" --mode local --port "$port" \
-          || fail "webserver proxy $s on $port failed"
-        say "proxied $s on $port (loopback only)" ;;
+        # Loopback ONLY: lets the dashboard link the page without exposing it anywhere.
+        lhpc webserver proxy "$s" --mode local || fail "webserver proxy $s failed"
+        say "proxied $s (loopback only)" ;;
       *) fail "unknown PROXY_MODE '$PROXY_MODE' (expected ap|local|none)" ;;
     esac
   done

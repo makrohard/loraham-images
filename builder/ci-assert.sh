@@ -56,26 +56,17 @@ ok "/healthz answers"
 curl -fsSk --max-time 5 "https://$ADDR:$PORT/" | grep -qiE '<html|lhpc|console' || fail "web GUI did not load at $ADDR"
 ok "web GUI loads"
 
-# Stack web proxies (Lite): every PROXY_STACKS entry must be configured on CONSOLE_PORT+1+index.
-# Gate A2 has no radio and no nftables, so AP-source filtering and the firewall apply are Gate B.
-if [ "${VARIANT:-lite}" = "lite" ] && [ -n "${PROXY_STACKS:-}" ]; then
-  # Probe the RENDERED nginx config, not `webserver status`. status prints only the console
-  # listener (bind/mode/CIDRs/deps/warnings) and never a proxy port — see the renderer at
-  # lhpc/adapters/cli/main.py:1119-1134 — so `status | grep <port>` could never match and this
-  # assertion was unpassable by construction. It went unnoticed because Lite died at the gate-a2
-  # loop detach before ever reaching it. A stack proxy renders as `listen <bind>:<port>`
-  # (lhpc/core/webserver.py:507), and step_console's apply promotes it, so the conf is the
-  # evidence that the proxy is both configured AND applied.
-  nconf="$RUNTIME/config/nginx/lhpc.conf"
-  [ -f "$nconf" ] || fail "rendered nginx config missing: $nconf"
-  i=0
-  for s in ${PROXY_STACKS//,/ }; do
-    pport=$(( ${PORT:-8443} + 1 + i )); i=$(( i + 1 ))
-    grep -qE "listen +[0-9.]+:$pport\b" "$nconf" \
-      || fail "no web-UI proxy rendered for $s on $pport in $nconf"
-    ok "proxy rendered: $s -> $pport"
-  done
-fi
+# Stack web proxies: a fresh image proxies NO stack page (pages are per radio since LHPC 0.14.0
+# and the image ships no radio list, asserted below). Probe the RENDERED nginx config, not
+# `webserver status`, which never prints a proxy port: every `listen <bind>:<port>` line
+# (lhpc/core/webserver.py) must be the console's own port. step_console's apply promotes the
+# config, so the conf is the evidence of what is both configured AND applied.
+[ -z "${PROXY_STACKS:-}" ] || fail "PROXY_STACKS='$PROXY_STACKS' but the image ships no radio list, so no page can be proxied"
+nconf="$RUNTIME/config/nginx/lhpc.conf"
+[ -f "$nconf" ] || fail "rendered nginx config missing: $nconf"
+extra=$(grep -oE "listen +[^ ;]+:[0-9]+" "$nconf" | grep -vE ":$PORT\$" || true)
+[ -z "$extra" ] || fail "stack page proxy rendered on a fresh image: ${extra//$'\n'/ }"
+ok "no stack page proxied (console listener only)"
 
 # SSH policy: driven by SSH_ENABLE, not by variant. Both images now ship recovery SSH on ALL
 # interfaces — a wired/AP recovery path must survive a first-boot failure (an AP-only bind

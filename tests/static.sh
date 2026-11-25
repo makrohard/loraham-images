@@ -118,6 +118,8 @@ bash tests/resume.sh || exit 1
 
 bash tests/recovery-ap.sh || exit 1
 
+bash tests/stackweb.sh || exit 1
+
 echo "== journald: the persistent, capped journal drop-in =="
 # The image keeps the system journal across reboots (Raspberry Pi OS's 40-rpi-volatile-storage.conf
 # makes it volatile; a field test lost its whole day to that). The drop-in must sort after the

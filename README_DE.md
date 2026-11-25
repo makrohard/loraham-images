@@ -158,11 +158,7 @@ WLAN ist, bleibt ihr AP aus.)
 | Region | `Europe/Berlin` · `DE` · Tastatur `de,us` | `Europe/Berlin` · `DE` · Tastatur `de,us` |
 | WLAN | **eigener AP** `lhpc-XXXX` / `lorahampi` auf `10.42.0.1` | **kommt in deins** (WLAN-Menü oder Ethernet) |
 | Web-Konsole | `https://10.42.0.1:8443` — nur im AP, ohne Passwort | `https://127.0.0.1:8443` — nur auf dem Pi |
-| MeshCom-UI | `https://10.42.0.1:8444` — nur im AP | `https://127.0.0.1:8444` — nur auf dem Pi |
-| Meshtastic-UI | `https://10.42.0.1:8445` — nur im AP | `https://127.0.0.1:8445` — nur auf dem Pi |
-| Graywolf-APRS-UI | `https://10.42.0.1:8446` — nur im AP, **eigener Login** | `https://127.0.0.1:8446` — nur auf dem Pi |
-| MeshChat-UI (Reticulum) | `https://10.42.0.1:8447` — nur im AP | `https://127.0.0.1:8447` — nur auf dem Pi |
-| MeshCore-UIs | nicht bereitgestellt — per `lhpc webserver proxy` oder SSH-Tunnel erreichbar | ebenso |
+| Stack-Web-UIs | keine bereitgestellt — Seiten setzt du pro Funkgerät in der Konsole nach dem Hardware-Setup | ebenso |
 | SSH | an, in **jedem** Netz des Pi | an, in **jedem** Netz des Pi |
 | Firewall | an; die nativen Ports der Stacks sind zu | an; die nativen Ports der Stacks sind zu |
 | Stacks | installiert & gebaut, **ohne die Desktop-Teile**, keiner läuft | **alle** installiert & gebaut, keiner läuft |
@@ -229,9 +225,9 @@ lhpc hardware uputronics             # e.g. a dual Uputronics rig
 lhpc config operator --callsign G0ABC        # dein EIGENES Basisrufzeichen
 
 # Meshtastic und MeshCore erben es nie — jeden Knoten vor dem Start benennen:
-lhpc config meshtastic node_name "G0ABC node"
-lhpc config meshtastic node_short GABC       # maximal 4 Bytes
-lhpc config meshcore node_name "G0ABC node"
+lhpc config meshtastic@r1 node_name "G0ABC node"
+lhpc config meshtastic@r1 node_short GABC       # maximal 4 Bytes
+lhpc config meshcore@r1 node_name "G0ABC node"
 ```
 Das Operator-Rufzeichen ist global — lizenzpflichtige Stacks erben es, solange ihr eigenes
 Rufzeichenfeld leer ist. Ohne auflösbare Identität startet ein Stack nicht, also vor Schritt 6
@@ -283,7 +279,7 @@ eine Quellinstallation (beides steht in der Tabelle und darunter).
 <details><summary><em>CLI</em></summary>
 
 ```bash
-lhpc stack start graywolf
+lhpc stack start graywolf@r1
 ```
 Kein Befehl gibt ein Passwort aus — der Wert landet bewusst weder im Log noch in einer API. Im
 Terminal liest du die Datei direkt:
@@ -455,17 +451,17 @@ Beide Dateien aufs Gerät schicken (AirDrop oder Mail), dann:
 <details><summary><em>CLI</em></summary>
 
 Auf dem Pi (`ssh lhpc@10.42.0.1`). Die Richtlinie für alle Stacks auf einmal ist eine Funktion der
-Konsole; aus der Shell setzt du jede Seite einzeln, die Liste entspricht `PROXY_STACKS`:
+Konsole; aus der Shell setzt du jede Seite einzeln, eine pro Funkgerät (`<stack>@<rid>`; `lhpc hardware`
+zeigt die Funkgeräte-IDs):
 ```bash
 lhpc webserver cert issue lhpc-laptop        # prints a ONE-TIME passphrase — record it now
 lhpc webserver cert export lhpc-laptop ~/lhpc-laptop.p12
-lhpc webserver proxy meshcom    --auth local-open-remote-auth --confirm-phrase enable-remote
-lhpc webserver proxy meshtastic --auth local-open-remote-auth --confirm-phrase enable-remote
-lhpc webserver proxy graywolf   --auth local-open-remote-auth --confirm-phrase enable-remote
-lhpc webserver proxy reticulum  --auth local-open-remote-auth --confirm-phrase enable-remote
-# Diese setzen nur den Access mode. Weggelassene Optionen BEHALTEN, was eine Seite schon hat — die
-# Kurzform funktioniert also, weil das Image jede Seite mit Mode, Port und Scheme ausliefert. Eine
-# nie konfigurierte Seite braucht sie ausgeschrieben:
+lhpc webserver proxy meshcom@r1    --auth local-open-remote-auth --confirm-phrase enable-remote
+lhpc webserver proxy meshtastic@r1 --auth local-open-remote-auth --confirm-phrase enable-remote
+lhpc webserver proxy graywolf@r1   --auth local-open-remote-auth --confirm-phrase enable-remote
+lhpc webserver proxy reticulum@r1  --auth local-open-remote-auth --confirm-phrase enable-remote
+# Diese setzen nur den Access mode. Weggelassene Optionen BEHALTEN, was eine Seite schon hat; ein
+# frisches Image stellt keine Seite bereit, eine nie konfigurierte Seite braucht sie also ausgeschrieben:
 #   --mode lan --port <port> --scheme https --cidr <bereich> (wiederholbar)
 lhpc webserver expose --cidr 10.42.0.0/24 --access-mode local-open-remote-auth --confirm-phrase enable-remote
 sudo bash ~/loraham-pi-control/config/files/firewall/firewall-apply.sh   # Gate: ohne das keine Freigabe
@@ -590,8 +586,8 @@ läuft danach von selbst wieder (**Autostart**, ab Werk an).
 
 ```bash
 lhpc status                      # what is installed and what is running
-lhpc stack start meshtastic      # start one
-lhpc stack stop meshtastic       # stop it again
+lhpc stack start meshtastic@r1      # start one
+lhpc stack stop meshtastic@r1       # stop it again
 lhpc autostart                   # see or change boot auto-restore
 ```
 </details>
@@ -621,7 +617,7 @@ starten.
 lhpc gps                                        # show the source (and what auto resolved to)
 lhpc gps --source gpsd                          # explicit: gpsd on this box
 lhpc gps --source nmea --device /dev/ttyACM0    # receiver direct, no gpsd
-lhpc config meshtastic use_gps on               # pro Stack; der Stack muss gestoppt sein
+lhpc config meshtastic@r1 use_gps on               # pro Stack; der Stack muss gestoppt sein
 ```
 </details>
 

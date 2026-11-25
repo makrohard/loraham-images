@@ -17,7 +17,7 @@ A checklist for the repo owner. What CI enforces vs. what is manual, plus the ho
   beside it
 - Gate A2 (throwaway copy, `--private-network`): out-of-box journey — user units, `/healthz`, web
   GUI loads, recovery sshd on all interfaces wherever `SSH_ENABLE=on` (both variants today),
-  stack web-UI proxies configured per `PROXY_STACKS` (Lite only; the Desktop loopback proxies are not asserted), daemon start refused, fresh device PKI,
+  no stack web-UI page proxied (console listener only; pages are set per radio after Hardware setup), daemon start refused, fresh device PKI,
   swap fixture, firstboot idempotent — plus the **cold-reboot** gate + host-netns-unchanged
 - seal: no build-boot state ships: `/var/log/journal` empty (the persistent journal would keep the
   build boot's), no `/var/lib/systemd/timers/stamp-*`, no `chrony.drift`, no `/etc/vnc/updateid`

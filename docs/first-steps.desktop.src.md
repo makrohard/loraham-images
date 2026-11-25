@@ -22,14 +22,14 @@ cannot lock you out.
   (`lhpc config operator --callsign YOURCALL` — the bare base call, no SSID). Without a
   resolvable identity a stack refuses to start, so nothing can transmit until you do.
 - **Name the licence-free nodes** — Meshtastic and MeshCore never inherit the callsign:
-  `lhpc config meshtastic node_name "<name>"`, `lhpc config meshtastic node_short <=4 bytes>`
-  and `lhpc config meshcore node_name "<name>"`. They refuse to start until you do.
+  `lhpc config meshtastic@<rid> node_name "<name>"`, `lhpc config meshtastic@<rid> node_short <=4 bytes>`
+  and `lhpc config meshcore@<rid> node_name "<name>"`. They refuse to start until you do.
 
 ## What is already set up
 
-- Console on **https://127.0.0.1:@CONSOLE_PORT@**, MeshCom on **:8444**, Meshtastic on **:8445**,
-  Graywolf APRS on **:8446**, MeshChat (Reticulum) on **:8447** — all on this Pi only. The stacks are not exposed to any network.
-  Graywolf has a login of its own, shown on its stack page after you start it once.
+- Console on **https://127.0.0.1:@CONSOLE_PORT@** — on this Pi only. No stack web UI is proxied
+  yet: pages are set per radio in the console after Hardware setup (`lhpc hardware` lists the radio
+  ids). The stacks are not exposed to any network.
 - The managed firewall is **already applied**; the stacks' own ports are blocked.
 - Regional defaults are **German**: timezone **@TIMEZONE@**, Wi-Fi country **@WIFI_COUNTRY@**,
   keyboard **@KEYBOARD@** (`Alt+Shift` switches layout). Set them in `lhpc-config.txt` before the
@@ -39,7 +39,7 @@ cannot lock you out.
   Without a battery for the Pi 5's clock, the box restarts after a power cut from the last time it
   saved (hourly and at shutdown) until it reaches NTP or a GPS fix.
 - **Every stack is already installed and built** — none is running, and nothing transmits
-  just from booting. Start what you want with `lhpc stack start <name>`.
+  just from booting. Start what you want with `lhpc stack start <stack>@<rid>`.
 - Boot auto-restore is **on**: whatever is running when you reboot comes back by itself
   (`lhpc autostart` to see or change it).
 

@@ -82,14 +82,20 @@ else
   ok "sshd off (SSH_ENABLE!=on)"
 fi
 
-# no hardware + no stack running + daemon start refused
+# no hardware + no stack running + daemon start refused. LHPC 0.14 strings: status names the
+# absent hardware list (lhpc/core/radio_start.py NO_LIST_TEXT); a bare `stack start daemon` with no
+# radio is refused by lhpc/core/instances.py parse_instance; a stack line reads `[id] Name  (state)`
+# (lhpc/core/services.py status, states from lhpc/core/model.py RunState).
 as_op "$LHPC" status > /tmp/st.txt 2>&1 || true
-grep -qiE 'running=0|0 running|no radio hardware' /tmp/st.txt || echo "  (status head: $(head -3 /tmp/st.txt))"
+grep -qF 'No hardware list' /tmp/st.txt || fail "status does not report the absent hardware list: $(head -3 /tmp/st.txt)"
+ok "no hardware list"
 out="$(as_op "$LHPC" stack start daemon --yes 2>&1 || true)"
-echo "$out" | grep -qi 'no radio hardware configured' || fail "daemon start was NOT refused for want of hardware: $out"
+echo "$out" | grep -qF 'can run on no enabled radio of the hardware list' \
+  || fail "daemon start was NOT refused for want of hardware: $out"
 ok "daemon start refused (no hardware)"
 # make sure nothing actually started
-as_op "$LHPC" status 2>&1 | grep -qiE '\brunning\b.*daemon|daemon.*\(running\)' && fail "a stack is running"
+grep -E '\[[a-z0-9_-]+\] .*\((running|degraded)\)' /tmp/st.txt && fail "a stack is running"
+as_op "$LHPC" status 2>&1 | grep -E '\[[a-z0-9_-]+\] .*\((running|degraded)\)' && fail "a stack is running"
 ok "no stack running"
 
 # sole operator user — the base 'pi' placeholder must have been removed

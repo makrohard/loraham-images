@@ -33,6 +33,7 @@ https://github.com/makrohard/loraham-images#install
 - Console on **https://@AP_ADDR@:@CONSOLE_PORT@** — reachable from this access point only, no
   password. No stack web UI is proxied yet: pages are set per radio in the console after Hardware
   setup (`lhpc hardware` lists the radio ids).
+  Graywolf has a login of its own, shown on its stack page after you start it once.
 - The managed firewall is **already applied**: the stacks' own ports are blocked, so a page proxy you
   set is the only way in. SSH stays reachable everywhere.
 - Regional defaults are **German**: timezone **@TIMEZONE@**, Wi-Fi country **@WIFI_COUNTRY@**,

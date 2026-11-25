@@ -150,7 +150,7 @@ the box is joined to your Wi-Fi its AP stays down.)
 | region | `Europe/Berlin` · `DE` · keyboard `de,us` | `Europe/Berlin` · `DE` · keyboard `de,us` |
 | Wi-Fi | **its own AP** `lhpc-XXXX` / `lorahampi` at `10.42.0.1` | **joins yours** (Wi-Fi menu or Ethernet) |
 | Web GUI | `https://10.42.0.1:8443` — AP only, no password | `https://127.0.0.1:8443` — on the Pi only |
-| stack web UIs | none proxied — pages are set per radio in the console after Hardware setup | same |
+| stack web UIs | none proxied — pages are set per radio in the console after Hardware setup; Graywolf APRS has its **own login** | same |
 | SSH | on, **every** network the Pi is on | on, **every** network the Pi is on |
 | firewall | on; the stacks' own ports are blocked | on; the stacks' own ports are blocked |
 | stacks | installed & built, **minus the desktop-only parts**, none running | **all** installed & built, none running |

@@ -30,6 +30,7 @@ cannot lock you out.
 - Console on **https://127.0.0.1:@CONSOLE_PORT@** — on this Pi only. No stack web UI is proxied
   yet: pages are set per radio in the console after Hardware setup (`lhpc hardware` lists the radio
   ids). The stacks are not exposed to any network.
+  Graywolf has a login of its own, shown on its stack page after you start it once.
 - The managed firewall is **already applied**; the stacks' own ports are blocked.
 - Regional defaults are **German**: timezone **@TIMEZONE@**, Wi-Fi country **@WIFI_COUNTRY@**,
   keyboard **@KEYBOARD@** (`Alt+Shift` switches layout). Set them in `lhpc-config.txt` before the

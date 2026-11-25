@@ -158,7 +158,7 @@ WLAN ist, bleibt ihr AP aus.)
 | Region | `Europe/Berlin` · `DE` · Tastatur `de,us` | `Europe/Berlin` · `DE` · Tastatur `de,us` |
 | WLAN | **eigener AP** `lhpc-XXXX` / `lorahampi` auf `10.42.0.1` | **kommt in deins** (WLAN-Menü oder Ethernet) |
 | Web-Konsole | `https://10.42.0.1:8443` — nur im AP, ohne Passwort | `https://127.0.0.1:8443` — nur auf dem Pi |
-| Stack-Web-UIs | keine bereitgestellt — Seiten setzt du pro Funkgerät in der Konsole nach dem Hardware-Setup | ebenso |
+| Stack-Web-UIs | keine bereitgestellt — Seiten setzt du pro Funkgerät in der Konsole nach dem Hardware-Setup; Graywolf APRS hat einen **eigenen Login** | ebenso |
 | SSH | an, in **jedem** Netz des Pi | an, in **jedem** Netz des Pi |
 | Firewall | an; die nativen Ports der Stacks sind zu | an; die nativen Ports der Stacks sind zu |
 | Stacks | installiert & gebaut, **ohne die Desktop-Teile**, keiner läuft | **alle** installiert & gebaut, keiner läuft |

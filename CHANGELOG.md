@@ -2,6 +2,12 @@
 
 Milestones only. Full detail is in the commits and in [`docs/maintenance.md`](docs/maintenance.md).
 
+## v0.14.1
+
+- Rebuild on `loraham-pi-control` **v0.14.1** (`1995d68`); see that repo's changelog.
+- First boot proxies no stack web page: since LHPC 0.14 a page is per radio and a fresh image has none yet; set pages
+  in the console after Hardware setup. The docs' commands name the instance (`<stack>@<rid>`).
+
 ## v0.14.0
 
 - Rebuild on `loraham-pi-control` **v0.14.0** (`96669e2`); see that repo's changelog.
